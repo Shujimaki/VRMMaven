@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.Spinner?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.AnchorPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.text.Font?>
+
+<AnchorPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="768.0" prefWidth="1366.0" style="-fx-background-color: #dcc894;" xmlns="http://javafx.com/javafx/22" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.example.vrmmaven.HelloController">
+   <children>
+      <HBox alignment="CENTER" layoutX="46.0" layoutY="49.0" prefHeight="678.0" prefWidth="1269.0" spacing="50.0">
+         <children>
+            <VBox fx:id="entryVBox1" prefHeight="678.0" prefWidth="735.0" spacing="20.0" style="-fx-background-color: #2b576d;">
+               <children>
+                  <Label alignment="CENTER" prefHeight="47.0" prefWidth="700.0" text="Item List" textFill="WHITE">
+                     <font>
+                        <Font name="System Bold" size="32.0" />
+                     </font>
+                  </Label>
+                  <HBox prefHeight="35.0" prefWidth="695.0" spacing="10.0">
+                     <VBox.margin>
+                        <Insets />
+                     </VBox.margin>
+                     <children>
+                        <ComboBox fx:id="typeFilterComboBox" prefHeight="35.0" prefWidth="60.0" promptText="🝖" style="-fx-font-size: 14; -fx-font-family: Arial;">
+                           <HBox.margin>
+                              <Insets />
+                           </HBox.margin>
+                        </ComboBox>
+                        <ComboBox fx:id="searchFilterComboBox" prefHeight="35.0" prefWidth="134.0" promptText="SEARCH BY:" style="-fx-font-size: 14; -fx-font-family: Arial;" />
+                        <TextField fx:id="searchField" prefHeight="35.0" prefWidth="480.0" promptText="Enter your search information here..." />
+                     </children>
+                  </HBox>
+                  <VBox fx:id="listViewContainer" prefHeight="500.0" prefWidth="540.0" spacing="10.0">
+                     <children>
+                        <ListView fx:id="itemListView" prefHeight="503.0" prefWidth="540.0" />
+                     </children>
+                  </VBox>
+               </children>
+               <padding>
+                  <Insets bottom="20.0" left="20.0" right="20.0" top="20.0" />
+               </padding>
+            </VBox>
+            <VBox fx:id="entryVBox" prefHeight="678.0" prefWidth="483.0" spacing="40.0" style="-fx-background-color: white;">
+               <children>
+                  <Label prefHeight="45.0" prefWidth="521.0" text="Enter NEW LOG Details:" textFill="#2b576d">
+                     <font>
+                        <Font name="System Bold" size="30.0" />
+                     </font>
+                     <VBox.margin>
+                        <Insets />
+                     </VBox.margin>
+                  </Label>
+                  <HBox prefHeight="44.0" prefWidth="709.0">
+                     <VBox.margin>
+                        <Insets />
+                     </VBox.margin>
+                     <children>
+                        <Label prefHeight="45.0" prefWidth="288.0" text="Branch*:" textFill="#2b576d">
+                           <font>
+                              <Font name="System Bold" size="24.0" />
+                           </font>
+                        </Label>
+                        <ComboBox fx:id="branchComboBox" prefHeight="60.0" prefWidth="440.0" promptText="Select a Branch" style="-fx-font-size: 20; -fx-font-family: Arial;" />
+                     </children>
+                  </HBox>
+                  <HBox prefHeight="44.0" prefWidth="709.0">
+                     <children>
+                        <Label prefHeight="45.0" prefWidth="288.0" text="SKU*:" textFill="#2b576d">
+                           <font>
+                              <Font name="System Bold" size="24.0" />
+                           </font>
+                        </Label>
+                        <TextField fx:id="SKUField" prefHeight="60.0" prefWidth="440.0" />
+                     </children>
+                     <VBox.margin>
+                        <Insets />
+                     </VBox.margin>
+                  </HBox>
+                  <HBox prefHeight="44.0" prefWidth="709.0">
+                     <children>
+                        <Label prefHeight="45.0" prefWidth="288.0" text="Activity*:" textFill="#2b576d">
+                           <font>
+                              <Font name="System Bold" size="24.0" />
+                           </font>
+                           <HBox.margin>
+                              <Insets />
+                           </HBox.margin>
+                        </Label>
+                        <ComboBox fx:id="activityComboBox" prefHeight="60.0" prefWidth="440.0" promptText="Select Activity" style="-fx-font-size: 20; -fx-font-family: Arial;" />
+                     </children>
+                     <VBox.margin>
+                        <Insets />
+                     </VBox.margin>
+                  </HBox>
+                  <HBox prefHeight="44.0" prefWidth="709.0">
+                     <children>
+                        <Label prefHeight="45.0" prefWidth="288.0" text="Quantity*:" textFill="#2b576d">
+                           <font>
+                              <Font name="System Bold" size="24.0" />
+                           </font>
+                        </Label>
+                        <Spinner fx:id="quantitySpinner" editable="true" prefHeight="60.0" prefWidth="440.0" />
+                     </children>
+                  </HBox>
+                  <HBox prefHeight="44.0" prefWidth="709.0">
+                     <children>
+                        <Label prefHeight="45.0" prefWidth="288.0" text="Description:" textFill="#2b576d">
+                           <font>
+                              <Font name="System Bold" size="24.0" />
+                           </font>
+                        </Label>
+                        <TextField fx:id="descriptionField" prefHeight="460.0" prefWidth="440.0" promptText="(Optional)">
+                           <font>
+                              <Font size="20.0" />
+                           </font>
+                        </TextField>
+                     </children>
+                     <VBox.margin>
+                        <Insets />
+                     </VBox.margin>
+                  </HBox>
+                  <HBox alignment="CENTER" prefHeight="44.0" prefWidth="709.0" spacing="50.0">
+                     <children>
+                        <Button alignment="CENTER" contentDisplay="CENTER" mnemonicParsing="false" onAction="#onHelloButtonClick" prefHeight="44.0" prefWidth="156.0" text="Enter" HBox.hgrow="ALWAYS">
+                           <HBox.margin>
+                              <Insets />
+                           </HBox.margin>
+                        </Button>
+                     </children>
+                     <VBox.margin>
+                        <Insets />
+                     </VBox.margin>
+                  </HBox>
+                  <Label fx:id="statusLabel" alignment="CENTER" prefHeight="36.0" prefWidth="709.0" text="[label here]" textFill="#2b576d">
+                     <VBox.margin>
+                        <Insets />
+                     </VBox.margin>
+                     <font>
+                        <Font name="System Bold Italic" size="12.0" />
+                     </font>
+                  </Label>
+               </children>
+               <padding>
+                  <Insets bottom="20.0" left="20.0" right="20.0" top="20.0" />
+               </padding>
+            </VBox>
+         </children>
+      </HBox>
+      <Label fx:id="welcomeText" layoutX="1003.0" layoutY="288.0" prefHeight="17.0" prefWidth="88.0" />
+   </children>
+</AnchorPane>
