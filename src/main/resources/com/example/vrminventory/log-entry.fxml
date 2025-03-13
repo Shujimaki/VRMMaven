@@ -18,7 +18,7 @@
          <children>
             <VBox fx:id="entryVBox1" prefHeight="678.0" prefWidth="735.0" spacing="20.0" style="-fx-background-color: #2b576d;">
                <children>
-                  <Label alignment="CENTER" prefHeight="47.0" prefWidth="700.0" text="Inventory List" textFill="WHITE">
+                  <Label fx:id="mainLabel" alignment="CENTER" prefHeight="47.0" prefWidth="700.0" text="Inventory List" textFill="WHITE">
                      <font>
                         <Font name="Arial Bold" size="32.0" />
                      </font>

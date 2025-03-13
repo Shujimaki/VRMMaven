@@ -52,6 +52,7 @@ public class LogEntryController {
     @FXML public static Stage logEntryStage;
     @FXML private ComboBox<String> branchComboBox;
     @FXML private TextField SKUField;
+    @FXML private Label mainLabel;
     @FXML private Label statusLabel;
     @FXML private ComboBox<String> activityComboBox;
     @FXML private Spinner<Integer> quantitySpinner;
@@ -93,6 +94,14 @@ public class LogEntryController {
             typeFilterComboBox.setValue("Alphabetical");
             ascOrDescComboBox.setValue("Ascending");
             applyFilters();
+
+            // Check if we're coming from login
+            String loginBranch = LoginController.getCurrentBranch();
+            if (loginBranch != null && !loginBranch.isEmpty()) {
+                setAuthenticatedBranch(loginBranch);
+            }
+
+            mainLabel.setText(loginBranch.toUpperCase() + " Inventory List");
 
         } catch (Exception e) {
             statusLabel.setText("Initialization error: " + e.getMessage());
@@ -153,8 +162,13 @@ public class LogEntryController {
     private void setupUIComponents() {
         setupListView();
         branchComboBox.getItems().addAll(BRANCH_LIST);
-        branchComboBox.setValue(currentBranch); // Set default branch
-        activityComboBox.getItems().addAll(ACTIVITY_LIST);
+
+        // If not set from login, use default
+        if (LoginController.getCurrentBranch() == null) {
+            branchComboBox.setValue(currentBranch); // Set default branch
+        }
+
+        // Set up activity combo box - will be populated in setAuthenticatedBranch
         searchFilterComboBox.getItems().addAll(SEARCH_FILTERS);
         typeFilterComboBox.getItems().addAll(TYPE_FILTERS);
         ascOrDescComboBox.getItems().addAll(ASC_DESC_FILTERS);
@@ -190,6 +204,28 @@ public class LogEntryController {
                 refreshData();
             }
         });
+    }
+
+    // Method to set the authenticated branch and configure UI accordingly
+    public void setAuthenticatedBranch(String branch) {
+        if (branch != null && !branch.isEmpty()) {
+            currentBranch = branch;
+
+            // Set branch in combo box and disable editing
+            branchComboBox.setValue(branch);
+            branchComboBox.setDisable(true);
+
+            // Update activity list based on branch
+            activityComboBox.getItems().clear();
+            if ("Warehouse".equals(branch)) {
+                activityComboBox.getItems().addAll("Supply", "Transfer-Out");
+            } else {
+                activityComboBox.getItems().addAll(ACTIVITY_LIST);
+            }
+
+            // Refresh data for the selected branch
+            refreshData();
+        }
     }
 
     @FXML

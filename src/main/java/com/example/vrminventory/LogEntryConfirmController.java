@@ -20,7 +20,8 @@ public class LogEntryConfirmController {
     // Constants
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MM/dd/yyyy");
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss");
-    private static final List<String> ACTIVITY_LIST = List.of("Sale", "Transfer-In", "Transfer-Out", "Return/Refund");
+    private static final List<String> ACTIVITY_LIST_BRANCH = List.of("Sale", "Transfer-In", "Transfer-Out", "Return/Refund");
+    private static final List<String> ACTIVITY_LIST_WAREHOUSE = List.of("Supply", "Transfer-Out");
     private static final ExecutorService EXECUTOR = Executors.newFixedThreadPool(1);
 
     // FXML components
@@ -96,14 +97,30 @@ public class LogEntryConfirmController {
             @Override
             protected Integer call() throws Exception {
                 // Prepare data
-                List<Object> dataToWrite = Arrays.asList(
-                        LocalDate.now().format(DATE_FORMATTER),
-                        LocalTime.now().format(TIME_FORMATTER),
-                        ACTIVITY_LIST.indexOf(activity) + 1,
-                        sku,
-                        quantity,
-                        description
-                );
+                List<Object> dataToWrite;
+
+                if (branch == "Warehouse") {
+                    dataToWrite = Arrays.asList(
+                            LocalDate.now().format(DATE_FORMATTER),
+                            LocalTime.now().format(TIME_FORMATTER),
+                            ACTIVITY_LIST_WAREHOUSE.indexOf(activity) + 1,
+                            sku,
+                            quantity,
+                            description
+                    );
+                }
+
+                else{
+                    dataToWrite = Arrays.asList(
+                            LocalDate.now().format(DATE_FORMATTER),
+                            LocalTime.now().format(TIME_FORMATTER),
+                            ACTIVITY_LIST_BRANCH.indexOf(activity) + 1,
+                            sku,
+                            quantity,
+                            description
+                    );
+                }
+
 
                 // Find next row and write data
                 String branchPrefix = branch + "!";
