@@ -35,11 +35,7 @@ import java.security.GeneralSecurityException;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.UnaryOperator;
@@ -62,17 +58,13 @@ public class HelloController {
     private static final List<String> BRANCH_LIST = List.of("Branch1", "Branch2", "Branch3", "Warehouse");
     private static final List<String> ACTIVITY_LIST = List.of("Sale", "Transfer-In", "Transfer-Out", "Return/Refund");
     private static final List<String> SEARCH_FILTERS = List.of("SKU", "Name", "Category");
-    private static final List<String> TYPE_FILTERS = List.of(
-            "SKU Ascending", "SKU Descending",
-            "Alphabetical Ascending", "Alphabetical Descending",
-            "Price Ascending", "Price Descending",
-            "Quantity Ascending", "Quantity Descending");
-
+    private static final List<String> TYPE_FILTERS = List.of("SKU", "Alphabetical", "Price", "Quantity");
+    private static final List<String> ASC_DESC_FILTERS = List.of("Ascending", "Descending");
 
     // Fields
     private final Sheets service;
-    private List<InventoryItem> itemList; //Original list, don't modify this
-    private List<InventoryItem> filteredItemList;  //For holding the items the search yields
+    private List<InventoryItem> itemList;
+    private List<InventoryItem> filteredItemList;
     private BST skuBST;
 
     // FXML components
@@ -88,7 +80,7 @@ public class HelloController {
     @FXML private ComboBox<String> searchFilterComboBox;
     @FXML private TextField searchField;
     @FXML private ComboBox<String> typeFilterComboBox;
-
+    @FXML private ComboBox<String> ascOrDescComboBox;
 
     private ObservableList<InventoryItem> observableItemList;
 
@@ -104,57 +96,19 @@ public class HelloController {
         welcomeText.setText("Hello World!");
 
         try {
-            itemList = getAllInventoryItems();
-            filteredItemList = new ArrayList<>(itemList);  // initialize here with everything from list
-            skuBST = new BST();
-            addItemsToBST();
+            // Initialize data
+            initializeData();
 
-            // Setup UI components
-            observableItemList = FXCollections.observableArrayList(filteredItemList);  // IMPORTANT Use FILITERED ITEM LIST
-            setupListView();
-            branchComboBox.getItems().addAll(BRANCH_LIST);
-            activityComboBox.getItems().addAll(ACTIVITY_LIST);
-            searchFilterComboBox.getItems().addAll(SEARCH_FILTERS);
-            typeFilterComboBox.getItems().addAll(TYPE_FILTERS);
-            initializeQuantitySpinner();
+            // Set up UI components
+            setupUIComponents();
 
-            // Initially disable the search field
-            searchField.setDisable(true);
+            // Set up event listeners
+            setupEventListeners();
 
-
-            // Set default selected value when code starts instead. And also run action listener trigger function on
-            searchFilterComboBox.setValue(null);        // Added so action below trigger
-
-
-            // Listen for changes in the search combo box
-            searchFilterComboBox.valueProperty().addListener((observable, oldValue, newValue) -> {
-                if (newValue != null && !newValue.isEmpty()) {
-                    searchField.setDisable(false);     // Enable when a search type is selected
-                    searchField.clear();             // Clear the search field
-                    handleSearch(searchField.getText());// Added force action as no searchtext yet, to avoid empty issues at beginning/action
-                    // Reset list to original state by pushing ALL the original data
-                    //filteredItemList.clear();          // REMOVED
-                    //filteredItemList.addAll(itemList);       // Rmoved those
-
-                } else {
-                    searchField.setDisable(true);         // Disable if nothing is selected
-                    filteredItemList.clear();          // Re added for non seatch selection filter as per user request
-
-                    filteredItemList.addAll(itemList); // Adds everything to
-
-                    updateObservableList();                // Make it true
-
-
-                }
-            });
-
-
-            // Search Functionality - Listener on the Search Text Field
-            searchField.textProperty().addListener((observable, oldValue, newValue) -> handleSearch(newValue));
-
-
-            // Type Filter Combo Box Listener
-            typeFilterComboBox.valueProperty().addListener((obs, oldVal, newVal) -> handleTypeFilter(newVal));
+            // Initialize filter at program start
+            typeFilterComboBox.setValue("Alphabetical");
+            ascOrDescComboBox.setValue("Ascending");
+            applyFilters();
 
         } catch (Exception e) {
             statusLabel.setText("Initialization error: " + e.getMessage());
@@ -162,14 +116,53 @@ public class HelloController {
         }
     }
 
+    private void initializeData() throws IOException {
+        itemList = getAllInventoryItems();
+        filteredItemList = new ArrayList<>(itemList);
+        skuBST = new BST();
+        addItemsToBST();
+        observableItemList = FXCollections.observableArrayList(filteredItemList);
+    }
+
+    private void setupUIComponents() {
+        setupListView();
+        branchComboBox.getItems().addAll(BRANCH_LIST);
+        activityComboBox.getItems().addAll(ACTIVITY_LIST);
+        searchFilterComboBox.getItems().addAll(SEARCH_FILTERS);
+        typeFilterComboBox.getItems().addAll(TYPE_FILTERS);
+        ascOrDescComboBox.getItems().addAll(ASC_DESC_FILTERS);
+        initializeQuantitySpinner();
+
+        searchField.setDisable(true);
+        searchFilterComboBox.setValue(null);
+    }
+
+    private void setupEventListeners() {
+        searchFilterComboBox.valueProperty().addListener((observable, oldValue, newValue) -> {
+            if (newValue != null && !newValue.isEmpty()) {
+                searchField.setDisable(false);
+                searchField.clear();
+                // Apply the search for an empty string to reset the filtered list
+                handleSearch("");
+            } else {
+                searchField.setDisable(true);
+                resetToFullList();
+            }
+        });
+
+        searchField.textProperty().addListener((observable, oldValue, newValue) ->
+                handleSearch(newValue));
+
+        typeFilterComboBox.valueProperty().addListener((obs, oldVal, newVal) -> applyFilters());
+        ascOrDescComboBox.valueProperty().addListener((obs, oldVal, newVal) -> applyFilters());
+    }
+
     @FXML
     private void initializeQuantitySpinner() {
-        // Set up spinner value factory
         SpinnerValueFactory.IntegerSpinnerValueFactory valueFactory =
                 new SpinnerValueFactory.IntegerSpinnerValueFactory(1, Integer.MAX_VALUE, 1);
         quantitySpinner.setValueFactory(valueFactory);
 
-        // Filter to only allow positive integers
         UnaryOperator<TextFormatter.Change> filter = change ->
                 change.getControlNewText().matches("\\d*") ? change : null;
 
@@ -196,9 +189,7 @@ public class HelloController {
         itemListView.setCellFactory(createItemCellFactory(columnWidths));
 
         // Populate the ListView
-        itemListView.setItems(observableItemList); // Use the observable list
-
-
+        itemListView.setItems(observableItemList);
     }
 
     private GridPane createHeaderGridPane() {
@@ -206,7 +197,7 @@ public class HelloController {
         headers.setHgap(10);
         headers.setPrefWidth(itemListView.getPrefWidth());
 
-        // Add header labels with consistent style
+        // Add header labels
         addHeaderLabel(headers, "SKU", 0);
         addHeaderLabel(headers, "Name", 1);
         addHeaderLabel(headers, "Category", 2);
@@ -283,6 +274,49 @@ public class HelloController {
                 }
             }
         };
+    }
+
+    @FXML
+    private void applyFilters() {
+        String typeFilter = typeFilterComboBox.getValue();
+        String ascDescFilter = ascOrDescComboBox.getValue();
+
+        if (typeFilter == null || ascDescFilter == null) {
+            return;
+        }
+
+        // First, apply the primary sorting criteria
+        Comparator<InventoryItem> primaryComparator = null;
+
+        switch (typeFilter) {
+            case "SKU":
+                primaryComparator = Comparator.comparingInt(InventoryItem::getSku);
+                break;
+            case "Alphabetical":
+                primaryComparator = Comparator.comparing(InventoryItem::getName);
+                break;
+            case "Price":
+                primaryComparator = Comparator.comparingDouble(InventoryItem::getPrice);
+                break;
+            case "Quantity":
+                primaryComparator = Comparator.comparingInt(InventoryItem::getQuantity);
+                break;
+        }
+
+        // Add secondary sorting by name for Price and Quantity
+        if ("Price".equals(typeFilter) || "Quantity".equals(typeFilter)) {
+            primaryComparator = primaryComparator.thenComparing(InventoryItem::getName);
+        }
+
+        // Apply the sorted comparator
+        filteredItemList.sort(primaryComparator);
+
+        // Apply descending order if selected
+        if ("Descending".equals(ascDescFilter)) {
+            Collections.reverse(filteredItemList);
+        }
+
+        updateObservableList();
     }
 
     @FXML
@@ -477,150 +511,57 @@ public class HelloController {
         System.out.printf("%d cells updated.%n", result.getUpdatedCells());
     }
 
-    // Overload the handleSearch to receive newText from listener
+    // Reset to the full list
+    private void resetToFullList() {
+        filteredItemList.clear();
+        filteredItemList.addAll(itemList);
+        applyFilters();
+    }
+
+    // Perform search based on filter and search text
     @FXML
-    private void handleSearch(String newText) {
+    private void handleSearch(String searchText) {
         String filter = searchFilterComboBox.getValue();
-        String searchText = newText.trim().toLowerCase(); // Take the updated value
+        searchText = searchText.trim().toLowerCase();
 
-        List<InventoryItem> searchResult;
+        // Reset to full list first to ensure we're searching all items
+        List<InventoryItem> baseList = new ArrayList<>(itemList);
 
-
-        if (filter == null || searchText.isEmpty()) {             // Re added full set here from source
-
-            searchResult = new ArrayList<>(itemList);
-
-
-        } else {            // Important so works and pulls if google code still works, can be separate call to separate that too to prevent slowdown, we can push it down for even easier understanding later with some calls
-
-            searchResult = itemList.stream()
-
-                    .filter(item -> {
-
-                        switch (filter) {
-
-                            case "SKU":
-
-                                try {
-
-                                    return String.valueOf(item.getSku()).startsWith(searchText);   // Partial character matching
-
-                                } catch (NumberFormatException e) {
-
-                                    return false;                                                   // Handle invalid number format if needed
-
-                                }
-
-                            case "Name":
-
-                                return item.getName().toLowerCase().contains(searchText);          // Partial String matching
-
-                            case "Category":
-
-                                return item.getCategory().toLowerCase().contains(searchText);     // Partial String matching
-
-                            default:
-
-                                return false;
-
-                        }
-
-                    })
-
+        // If no filter or empty search, use full list
+        if (filter == null || searchText.isEmpty()) {
+            filteredItemList.clear();
+            filteredItemList.addAll(baseList);
+        } else {
+            // Apply filter based on search criteria
+            String finalSearchText = searchText;
+            List<InventoryItem> searchResults = baseList.stream()
+                    .filter(item -> matchesSearchCriteria(item, filter, finalSearchText))
                     .collect(Collectors.toList());
+
+            filteredItemList.clear();
+            filteredItemList.addAll(searchResults);
         }
 
-
-
-        filteredItemList.clear();           // clean up previous action
-
-        filteredItemList.addAll(searchResult);           // re set data from
-
-        applyTypeFilter();                            // Important so sort actions keeps doing
-
+        // Apply current sort filters to maintain consistency
+        applyFilters();
     }
 
-
-    @FXML
-    private void handleTypeFilter(String filterType) {            // IMPORTANT THIS FUNCTION WAS FOR INITIAL OR USER SELECTION ACTION
-
-        if (filterType == null || filterType.isEmpty()) {
-
-            updateObservableList();            // Update so data updates no stop here or break is required
-
-            return;
-
+    // Helper method to check if an item matches search criteria
+    private boolean matchesSearchCriteria(InventoryItem item, String filter, String searchText) {
+        switch (filter) {
+            case "SKU":
+                return String.valueOf(item.getSku()).startsWith(searchText);
+            case "Name":
+                return item.getName().toLowerCase().contains(searchText);
+            case "Category":
+                return item.getCategory().toLowerCase().contains(searchText);
+            default:
+                return false;
         }
-
-
-        switch (filterType) {
-
-            case "SKU Ascending":
-
-                filteredItemList.sort(Comparator.comparingInt(InventoryItem::getSku));
-
-                break;
-
-            case "SKU Descending":
-
-                filteredItemList.sort((a, b) -> Integer.compare(b.getSku(), a.getSku()));
-
-                break;
-
-            case "Alphabetical Ascending":
-
-                filteredItemList.sort(Comparator.comparing(InventoryItem::getName));
-
-                break;
-
-            case "Alphabetical Descending":
-
-                filteredItemList.sort((a, b) -> b.getName().compareTo(a.getName()));
-
-                break;
-
-            case "Price Ascending":
-
-                filteredItemList.sort(Comparator.comparingDouble(InventoryItem::getPrice));
-
-                break;
-
-            case "Price Descending":
-
-                filteredItemList.sort((a, b) -> Double.compare(b.getPrice(), a.getPrice()));
-
-                break;
-
-            case "Quantity Ascending":
-
-                filteredItemList.sort(Comparator.comparingInt(InventoryItem::getQuantity));
-
-                break;
-
-            case "Quantity Descending":
-
-                filteredItemList.sort((a, b) -> Integer.compare(b.getQuantity(), a.getQuantity()));
-
-                break;
-
-        }
-
-
-        updateObservableList();         // MUST push again
     }
-
-
-    private void applyTypeFilter() {                                  // FUNCTION for calling action
-
-        String selectedType = typeFilterComboBox.getValue();        // set the parameters used at selected/user preference or for any call/call/function/etc calls from list instead and is the goal of using data sets.
-
-        handleTypeFilter(selectedType);
-
-    }
-
 
     private void updateObservableList() {
-        observableItemList.setAll(filteredItemList);  // VERY Important for updating values on function for action as these run a single actions at point, must push with full. If its setall must clean from 0, if adding only 0
+        observableItemList.setAll(filteredItemList);
     }
 
     // Make sure to shut down the executor when the application closes

@@ -23,18 +23,28 @@
                         <Font name="System Bold" size="32.0" />
                      </font>
                   </Label>
-                  <HBox prefHeight="35.0" prefWidth="695.0" spacing="10.0">
+                  <HBox prefHeight="65.0" prefWidth="695.0" spacing="10.0">
                      <VBox.margin>
                         <Insets />
                      </VBox.margin>
                      <children>
-                        <ComboBox fx:id="typeFilterComboBox" prefHeight="35.0" prefWidth="60.0" promptText="🝖" style="-fx-font-size: 14; -fx-font-family: Arial;">
+                        <ComboBox fx:id="searchFilterComboBox" prefHeight="35.0" prefWidth="134.0" promptText="SEARCH BY:" style="-fx-font-size: 14; -fx-font-family: Arial;" />
+                        <TextField fx:id="searchField" prefHeight="33.0" prefWidth="551.0" promptText="Enter your search information here..." />
+                     </children>
+                  </HBox>
+                  <HBox prefHeight="60.0" prefWidth="200.0" spacing="10.0">
+                     <children>
+                        <Label prefHeight="60.0" prefWidth="135.0" text="FILTER BY:" textFill="WHITE">
+                           <font>
+                              <Font name="System Bold" size="18.0" />
+                           </font>
+                        </Label>
+                        <ComboBox fx:id="typeFilterComboBox" prefHeight="60.0" prefWidth="200.0" promptText="🝖" style="-fx-font-size: 14; -fx-font-family: Arial;">
                            <HBox.margin>
                               <Insets />
                            </HBox.margin>
                         </ComboBox>
-                        <ComboBox fx:id="searchFilterComboBox" prefHeight="35.0" prefWidth="134.0" promptText="SEARCH BY:" style="-fx-font-size: 14; -fx-font-family: Arial;" />
-                        <TextField fx:id="searchField" prefHeight="35.0" prefWidth="480.0" promptText="Enter your search information here..." />
+                        <ComboBox fx:id="ascOrDescComboBox" prefHeight="60.0" prefWidth="150.0" promptText="↑ or ↓" style="-fx-font-size: 14; -fx-font-family: Arial;" />
                      </children>
                   </HBox>
                   <VBox fx:id="listViewContainer" prefHeight="500.0" prefWidth="540.0" spacing="10.0">
