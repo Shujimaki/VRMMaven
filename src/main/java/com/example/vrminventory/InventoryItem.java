@@ -1,4 +1,4 @@
-package com.example.vrmmaven;
+package com.example.vrminventory;
 
 public class InventoryItem {
     private int sku;

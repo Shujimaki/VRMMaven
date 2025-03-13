@@ -1,21 +1,5 @@
-package com.example.vrmmaven;
+package com.example.vrminventory;
 
-import com.google.api.client.auth.oauth2.Credential;
-import com.google.api.client.extensions.java6.auth.oauth2.AuthorizationCodeInstalledApp;
-import com.google.api.client.extensions.jetty.auth.oauth2.LocalServerReceiver;
-import com.google.api.client.googleapis.auth.oauth2.GoogleAuthorizationCodeFlow;
-import com.google.api.client.googleapis.auth.oauth2.GoogleClientSecrets;
-import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
-import com.google.api.client.http.javanet.NetHttpTransport;
-import com.google.api.client.json.JsonFactory;
-import com.google.api.client.json.gson.GsonFactory;
-import com.google.api.client.util.store.FileDataStoreFactory;
-import com.google.api.services.sheets.v4.Sheets;
-import com.google.api.services.sheets.v4.SheetsScopes;
-import com.google.api.services.sheets.v4.model.Sheet;
-import com.google.api.services.sheets.v4.model.Spreadsheet;
-import com.google.api.services.sheets.v4.model.UpdateValuesResponse;
-import com.google.api.services.sheets.v4.model.ValueRange;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.concurrent.Task;
@@ -23,14 +7,12 @@ import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.util.Callback;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.security.GeneralSecurityException;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -41,17 +23,10 @@ import java.util.concurrent.Executors;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
-public class HelloController {
+public class LogEntryController {
     // Constants
-    private static final String APPLICATION_NAME = "VRM Inventory System";
-    private static final JsonFactory JSON_FACTORY = GsonFactory.getDefaultInstance();
-    private static final String TOKENS_DIRECTORY_PATH = "tokens";
-    private static final List<String> SCOPES = Collections.singletonList(SheetsScopes.SPREADSHEETS);
-    private static final String CREDENTIALS_FILE_PATH = "/credentials.json";
-    private static final String SPREADSHEET_ID = "1ztEDIb6npREKC6a9uJxjlQFkFGGgwDfL_v2Lpo2aSdc";
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MM/dd/yyyy");
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss");
-    private static final int START_ROW = 21;
     private static final ExecutorService EXECUTOR = Executors.newFixedThreadPool(2);
 
     // Lists
@@ -62,7 +37,7 @@ public class HelloController {
     private static final List<String> ASC_DESC_FILTERS = List.of("Ascending", "Descending");
 
     // Fields
-    private final Sheets service;
+    private GoogleSheetsService sheetsService;
     private List<InventoryItem> itemList;
     private List<InventoryItem> filteredItemList;
     private BST skuBST;
@@ -84,16 +59,18 @@ public class HelloController {
 
     private ObservableList<InventoryItem> observableItemList;
 
-    public HelloController() throws GeneralSecurityException, IOException {
-        NetHttpTransport httpTransport = GoogleNetHttpTransport.newTrustedTransport();
-        service = new Sheets.Builder(httpTransport, JSON_FACTORY, getCredentials(httpTransport))
-                .setApplicationName(APPLICATION_NAME)
-                .build();
+    public LogEntryController() {
+        try {
+            // Initialize Google Sheets service
+            sheetsService = new GoogleSheetsService();
+        } catch (GeneralSecurityException | IOException e) {
+            System.err.println("Failed to initialize Google Sheets service: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     @FXML
     private void initialize() {
-        welcomeText.setText("Hello World!");
 
         try {
             // Initialize data
@@ -117,7 +94,11 @@ public class HelloController {
     }
 
     private void initializeData() throws IOException {
-        itemList = getAllInventoryItems();
+        if (sheetsService == null) {
+            throw new IOException("Google Sheets service is not initialized");
+        }
+
+        itemList = sheetsService.getAllInventoryItems("Branch1");
         filteredItemList = new ArrayList<>(itemList);
         skuBST = new BST();
         addItemsToBST();
@@ -167,6 +148,12 @@ public class HelloController {
                 change.getControlNewText().matches("\\d*") ? change : null;
 
         quantitySpinner.getEditor().setTextFormatter(new TextFormatter<>(filter));
+
+        // Set the font size and family for the spinner's editor TextField
+        quantitySpinner.getEditor().setStyle("-fx-font-size: 20px; -fx-font-family: 'Arial';");
+
+        // Optional: Adjust the spinner's overall style for better appearance with the new font
+        quantitySpinner.setStyle("-fx-font-size: 20px;");
     }
 
     @FXML
@@ -187,6 +174,9 @@ public class HelloController {
 
         // Configure ListView with custom cell factory
         itemListView.setCellFactory(createItemCellFactory(columnWidths));
+
+        // Remove fixed cell size to allow dynamic height based on content
+        itemListView.setFixedCellSize(Region.USE_COMPUTED_SIZE);
 
         // Populate the ListView
         itemListView.setItems(observableItemList);
@@ -217,6 +207,7 @@ public class HelloController {
     private void addHeaderLabel(GridPane grid, String text, int column) {
         Label label = new Label(text);
         label.setTextFill(Color.WHITE);
+        label.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
         grid.add(label, column, 0);
     }
 
@@ -249,11 +240,26 @@ public class HelloController {
                 gridPane.add(priceLabel, 3, 0);
                 gridPane.add(quantityLabel, 4, 0);
 
+                // Set font size for all labels
+                String fontStyle = "-fx-font-size: 14px;";
+                skuLabel.setStyle(fontStyle);
+                nameLabel.setStyle(fontStyle);
+                categoryLabel.setStyle(fontStyle);
+                priceLabel.setStyle(fontStyle);
+                quantityLabel.setStyle(fontStyle);
+
                 // Configure text wrapping
-                nameLabel.setMaxWidth(columnWidths[1] - 10);
                 nameLabel.setWrapText(true);
-                categoryLabel.setMaxWidth(columnWidths[2] - 10);
+                nameLabel.setMaxWidth(columnWidths[1] - 10);
+                // Ensure the label doesn't get clipped
+                nameLabel.setMinHeight(Label.USE_COMPUTED_SIZE);
+                nameLabel.setPrefHeight(Label.USE_COMPUTED_SIZE);
+
                 categoryLabel.setWrapText(true);
+                categoryLabel.setMaxWidth(columnWidths[2] - 10);
+                // Ensure the label doesn't get clipped
+                categoryLabel.setMinHeight(Label.USE_COMPUTED_SIZE);
+                categoryLabel.setPrefHeight(Label.USE_COMPUTED_SIZE);
             }
 
             @Override
@@ -270,6 +276,9 @@ public class HelloController {
                     categoryLabel.setText(item.getCategory());
                     priceLabel.setText(String.format("₱%.2f", item.getPrice()));
                     quantityLabel.setText(String.valueOf(item.getQuantity()));
+
+                    // Set the cell height to grow as needed based on content
+                    setPrefHeight(USE_COMPUTED_SIZE);
                     setGraphic(gridPane);
                 }
             }
@@ -345,8 +354,10 @@ public class HelloController {
 
                 // Find next row and write data
                 String branch = branchComboBox.getValue() + "!";
-                String range = findNextRow(branch, service, SPREADSHEET_ID);
-                writeData(service, SPREADSHEET_ID, range, dataToWrite);
+                String range = sheetsService.findNextRow(branch);
+                int cellsUpdated = sheetsService.writeData(range, dataToWrite);
+
+                System.out.printf("%d cells updated.%n", cellsUpdated);
 
                 return null;
             }
@@ -402,43 +413,6 @@ public class HelloController {
         });
     }
 
-    private List<InventoryItem> getAllInventoryItems() throws IOException {
-        List<InventoryItem> items = new ArrayList<>();
-
-        // Get sheet metadata
-        Spreadsheet spreadsheet = service.spreadsheets().get(SPREADSHEET_ID).execute();
-        Sheet inventorySheet = spreadsheet.getSheets().stream()
-                .filter(sheet -> "Branch1".equals(sheet.getProperties().getTitle()))
-                .findFirst()
-                .orElseThrow(() -> new IOException("Branch1 sheet not found"));
-
-        // Fetch data from sheet
-        String range = "Branch1!B21:F";
-        ValueRange response = service.spreadsheets().values()
-                .get(SPREADSHEET_ID, range)
-                .execute();
-
-        if (response.getValues() != null) {
-            for (List<Object> row : response.getValues()) {
-                if (row.size() >= 5) {
-                    try {
-                        int sku = Integer.parseInt(row.get(0).toString());
-                        String name = row.get(1).toString();
-                        String category = row.get(2).toString();
-                        double price = Double.parseDouble(row.get(3).toString());
-                        int quantity = Integer.parseInt(row.get(4).toString());
-
-                        items.add(new InventoryItem(sku, name, category, price, quantity));
-                    } catch (NumberFormatException e) {
-                        System.err.println("Invalid number format: " + e.getMessage());
-                    }
-                }
-            }
-        }
-
-        return items;
-    }
-
     private void addItemsToBST() {
         for (InventoryItem item : itemList) {
             skuBST.insert(item.getSku());
@@ -447,68 +421,6 @@ public class HelloController {
 
     private boolean isValidSKU(int sku) {
         return skuBST.search(sku);
-    }
-
-    /**
-     * Creates an authorized Credential object.
-     *
-     * @param httpTransport The network HTTP Transport.
-     * @return An authorized Credential object.
-     * @throws IOException If the credentials.json file cannot be found.
-     */
-    private static Credential getCredentials(final NetHttpTransport httpTransport) throws IOException {
-        // Load client secrets
-        InputStream in = SheetsQuickstart.class.getResourceAsStream(CREDENTIALS_FILE_PATH);
-        if (in == null) {
-            throw new FileNotFoundException("Resource not found: " + CREDENTIALS_FILE_PATH);
-        }
-
-        GoogleClientSecrets clientSecrets = GoogleClientSecrets.load(JSON_FACTORY, new InputStreamReader(in));
-
-        // Build flow and trigger user authorization request
-        GoogleAuthorizationCodeFlow flow = new GoogleAuthorizationCodeFlow.Builder(
-                httpTransport, JSON_FACTORY, clientSecrets, SCOPES)
-                .setDataStoreFactory(new FileDataStoreFactory(new java.io.File(TOKENS_DIRECTORY_PATH)))
-                .setAccessType("offline")
-                .build();
-
-        LocalServerReceiver receiver = new LocalServerReceiver.Builder().setPort(8888).build();
-
-        return new AuthorizationCodeInstalledApp(flow, receiver).authorize("user");
-    }
-
-    public static String findNextRow(String branch, Sheets service, String spreadsheetId) throws IOException {
-        String range = branch + "I" + START_ROW + ":N";
-        ValueRange response = service.spreadsheets().values()
-                .get(spreadsheetId, range)
-                .execute();
-
-        if (response.getValues() == null || response.getValues().isEmpty()) {
-            return branch + "I" + START_ROW + ":N" + START_ROW;
-        }
-
-        // Find first empty row
-        for (int i = 0; i < response.getValues().size(); i++) {
-            if (response.getValues().get(i).isEmpty()) {
-                int rowNum = START_ROW + i;
-                return branch + "I" + rowNum + ":N" + rowNum;
-            }
-        }
-
-        // If no empty row found, return next row after last fetched row
-        int nextRow = START_ROW + response.getValues().size();
-        return branch + "I" + nextRow + ":N" + nextRow;
-    }
-
-    public static void writeData(Sheets service, String spreadsheetId, String range, List<Object> data) throws IOException {
-        ValueRange body = new ValueRange().setValues(Collections.singletonList(data));
-
-        UpdateValuesResponse result = service.spreadsheets().values()
-                .update(spreadsheetId, range, body)
-                .setValueInputOption("USER_ENTERED")
-                .execute();
-
-        System.out.printf("%d cells updated.%n", result.getUpdatedCells());
     }
 
     // Reset to the full list

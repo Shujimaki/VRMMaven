@@ -1,4 +1,4 @@
-package com.example.vrmmaven;
+package com.example.vrminventory;
 
 import java.util.ArrayList;
 import java.util.List;

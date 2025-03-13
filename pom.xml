@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.example</groupId>
-    <artifactId>VRMMaven</artifactId>
+    <artifactId>VRMInventory</artifactId>
     <version>1.0-SNAPSHOT</version>
     <name>VRMMaven</name>
 
@@ -98,7 +98,7 @@
                         <!-- Default configuration for running with: mvn clean javafx:run -->
                         <id>default-cli</id>
                         <configuration>
-                            <mainClass>com.example.vrmmaven/com.example.vrmmaven.HelloApplication</mainClass>
+                            <mainClass>com.example.vrmmaven/com.example.vrminventory.HelloApplication</mainClass>
                             <launcher>app</launcher>
                             <jlinkZipName>app</jlinkZipName>
                             <jlinkImageName>app</jlinkImageName>

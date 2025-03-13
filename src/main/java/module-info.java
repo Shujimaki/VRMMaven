@@ -1,4 +1,4 @@
-module com.example.vrmmaven {
+module com.example.vrminventory {
     requires javafx.controls;
     requires javafx.fxml;
     requires google.api.services.sheets.v4.rev614;
@@ -12,6 +12,6 @@ module com.example.vrmmaven {
 
 
 
-    opens com.example.vrmmaven to javafx.fxml;
-    exports com.example.vrmmaven;
+    opens com.example.vrminventory to javafx.fxml;
+    exports com.example.vrminventory;
 }
