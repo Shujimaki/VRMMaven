@@ -459,6 +459,25 @@ public class LogEntryController {
         }
     }
 
+    @FXML
+    protected void onBackButtonClick() throws IOException {
+        // Close the current log entry stage
+        Stage currentStage = (Stage) entryVBox.getScene().getWindow();
+        currentStage.close();
+
+        // Load the login screen again
+        FXMLLoader loader = new FXMLLoader(getClass().getResource("login.fxml"));
+        Parent root = loader.load();
+
+        // Create a new stage for the login screen
+        Stage loginStage = new Stage();
+        loginStage.setTitle("VRM Inventory System - Login");
+        loginStage.setScene(new Scene(root, 720, 720));
+        loginStage.setResizable(false);
+        loginStage.show();
+    }
+
+
     private void clearFields() {
         SKUField.clear();
         quantitySpinner.getValueFactory().setValue(1);

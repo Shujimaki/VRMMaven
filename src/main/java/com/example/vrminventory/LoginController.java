@@ -70,6 +70,7 @@ public class LoginController {
     @FXML private Label statusLabel;
     @FXML private Button loginButton;
 
+
     // Current authenticated branch
     private static String currentBranch;
 
