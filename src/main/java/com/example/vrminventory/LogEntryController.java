@@ -2,22 +2,28 @@ package com.example.vrminventory;
 
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
-import javafx.concurrent.Task;
 import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
+import javafx.stage.StageStyle;
 import javafx.util.Callback;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
-import java.time.LocalDate;
-import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.UnaryOperator;
@@ -43,7 +49,7 @@ public class LogEntryController {
     private BST skuBST;
 
     // FXML components
-    @FXML private Label welcomeText;
+    @FXML public static Stage logEntryStage;
     @FXML private ComboBox<String> branchComboBox;
     @FXML private TextField SKUField;
     @FXML private Label statusLabel;
@@ -56,8 +62,10 @@ public class LogEntryController {
     @FXML private TextField searchField;
     @FXML private ComboBox<String> typeFilterComboBox;
     @FXML private ComboBox<String> ascOrDescComboBox;
+    @FXML private TextField descriptionField; // Added for description input
 
     private ObservableList<InventoryItem> observableItemList;
+    private String currentBranch = "Branch1"; // Default branch
 
     public LogEntryController() {
         try {
@@ -71,7 +79,6 @@ public class LogEntryController {
 
     @FXML
     private void initialize() {
-
         try {
             // Initialize data
             initializeData();
@@ -98,16 +105,55 @@ public class LogEntryController {
             throw new IOException("Google Sheets service is not initialized");
         }
 
-        itemList = sheetsService.getAllInventoryItems("Branch1");
+        itemList = sheetsService.getAllInventoryItems(currentBranch);
         filteredItemList = new ArrayList<>(itemList);
         skuBST = new BST();
         addItemsToBST();
         observableItemList = FXCollections.observableArrayList(filteredItemList);
     }
 
+    // New method to refresh data from Google Sheets
+    public void refreshData() {
+        try {
+            // Get current branch selection
+            String selectedBranch = branchComboBox.getValue();
+            if (selectedBranch != null) {
+                currentBranch = selectedBranch;
+            }
+
+            // Retrieve fresh data from Google Sheets
+            itemList = sheetsService.getAllInventoryItems(currentBranch);
+
+            // Clear and rebuild the BST
+            skuBST = new BST();
+            addItemsToBST();
+
+            // Update filtered list
+            String searchFilter = searchFilterComboBox.getValue();
+            String searchText = searchField.getText();
+
+            if (searchFilter != null && !searchText.isEmpty()) {
+                // Apply search filter if active
+                handleSearch(searchText);
+            } else {
+                // Otherwise reset to full list
+                filteredItemList.clear();
+                filteredItemList.addAll(itemList);
+                applyFilters();
+            }
+
+            // Update status
+            statusLabel.setText("Data refreshed successfully");
+        } catch (IOException e) {
+            statusLabel.setText("Error refreshing data: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
     private void setupUIComponents() {
         setupListView();
         branchComboBox.getItems().addAll(BRANCH_LIST);
+        branchComboBox.setValue(currentBranch); // Set default branch
         activityComboBox.getItems().addAll(ACTIVITY_LIST);
         searchFilterComboBox.getItems().addAll(SEARCH_FILTERS);
         typeFilterComboBox.getItems().addAll(TYPE_FILTERS);
@@ -136,6 +182,14 @@ public class LogEntryController {
 
         typeFilterComboBox.valueProperty().addListener((obs, oldVal, newVal) -> applyFilters());
         ascOrDescComboBox.valueProperty().addListener((obs, oldVal, newVal) -> applyFilters());
+
+        // Add listener for branch change
+        branchComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null && !newVal.equals(oldVal)) {
+                currentBranch = newVal;
+                refreshData();
+            }
+        });
     }
 
     @FXML
@@ -335,36 +389,47 @@ public class LogEntryController {
             return;
         }
 
-        int sku = Integer.parseInt(SKUField.getText());
+        try {
+            // Load confirmation dialog
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("log-entry-confirm.fxml"));
+            LogEntryConfirmController confirmController = new LogEntryConfirmController(
+                    sheetsService,
+                    branchComboBox.getValue(),
+                    Integer.parseInt(SKUField.getText()),
+                    activityComboBox.getValue(),
+                    quantitySpinner.getValue(),
+                    descriptionField != null ? descriptionField.getText() : "TextFieldDesc",
+                    this // Pass reference to this controller for callback
+            );
+            loader.setController(confirmController);
 
-        Task<Void> task = new Task<>() {
-            @Override
-            protected Void call() throws Exception {
-                entryVBox.setDisable(true);
+            Parent root = loader.load();
 
-                // Prepare data
-                List<Object> dataToWrite = Arrays.asList(
-                        LocalDate.now().format(DATE_FORMATTER),
-                        LocalTime.now().format(TIME_FORMATTER),
-                        ACTIVITY_LIST.indexOf(activityComboBox.getValue()) + 1,
-                        sku,
-                        quantitySpinner.getValue(),
-                        "TextFieldDesc"
-                );
+            // Create and show the confirmation stage
+            Stage confirmStage = new Stage();
+            confirmStage.initModality(Modality.APPLICATION_MODAL);
+            confirmStage.initStyle(StageStyle.UNDECORATED);
+            confirmStage.setScene(new Scene(root));
+            confirmStage.showAndWait();
 
-                // Find next row and write data
-                String branch = branchComboBox.getValue() + "!";
-                String range = sheetsService.findNextRow(branch);
-                int cellsUpdated = sheetsService.writeData(range, dataToWrite);
-
-                System.out.printf("%d cells updated.%n", cellsUpdated);
-
-                return null;
+            // Clear fields if confirmed successfully
+            if (confirmController.isConfirmed()) {
+                clearFields();
+                // No need to call refreshData here, as it's called from confirm controller
             }
-        };
+        } catch (IOException e) {
+            statusLabel.setText("Error loading confirmation dialog: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
 
-        setupTaskHandlers(task);
-        EXECUTOR.submit(task);
+    private void clearFields() {
+        SKUField.clear();
+        quantitySpinner.getValueFactory().setValue(1);
+        if (descriptionField != null) {
+            descriptionField.clear();
+        }
+        statusLabel.setText("Log entry complete");
     }
 
     private boolean validateInput() {
@@ -393,24 +458,6 @@ public class LogEntryController {
         }
 
         return true;
-    }
-
-    private void setupTaskHandlers(Task<Void> task) {
-        task.setOnSucceeded(event -> {
-            statusLabel.setText("Success");
-            entryVBox.setDisable(false);
-        });
-
-        task.setOnFailed(event -> {
-            Throwable exception = task.getException();
-            statusLabel.setText("Failed: " + exception.getMessage());
-            exception.printStackTrace();
-            entryVBox.setDisable(false);
-        });
-
-        task.setOnRunning(event -> {
-            statusLabel.setText("Processing...");
-        });
     }
 
     private void addItemsToBST() {
@@ -476,8 +523,21 @@ public class LogEntryController {
         observableItemList.setAll(filteredItemList);
     }
 
-    // Make sure to shut down the executor when the application closes
+    // In LogEntryController.java
     public void shutdown() {
-        EXECUTOR.shutdown();
+        // Shutdown this controller's executor
+        if (!EXECUTOR.isShutdown()) {
+            EXECUTOR.shutdownNow(); // Force immediate shutdown
+        }
+
+        // Also try to shutdown any executor in the Google Sheets service
+        // This is important as HTTP client pools might still be running
+        if (sheetsService != null && sheetsService.getSheetsService() != null) {
+            try {
+                sheetsService.getSheetsService().getRequestFactory().getTransport().shutdown();
+            } catch (Exception e) {
+                System.err.println("Error shutting down HTTP transport: " + e.getMessage());
+            }
+        }
     }
 }

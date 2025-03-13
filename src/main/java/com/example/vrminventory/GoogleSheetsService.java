@@ -215,4 +215,20 @@ public class GoogleSheetsService {
     public String getSpreadsheetId() {
         return spreadsheetId;
     }
+
+    /**
+     * Shuts down the sheets service and its underlying resources.
+     */
+    public void shutdown() {
+        try {
+            if (sheetsService != null && sheetsService.getRequestFactory() != null &&
+                    sheetsService.getRequestFactory().getTransport() != null) {
+
+                // Attempt to shutdown the HTTP transport
+                sheetsService.getRequestFactory().getTransport().shutdown();
+            }
+        } catch (Exception e) {
+            System.err.println("Error shutting down sheets service: " + e.getMessage());
+        }
+    }
 }
