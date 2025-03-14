@@ -35,7 +35,7 @@ public class LoginController {
 
     // Login attempt tracking
     private static final int MAX_LOGIN_ATTEMPTS = 5;
-    private static final int TIMEOUT_SECONDS = 15;
+    private static final int TIMEOUT_SECONDS = 5;
     private int failedLoginAttempts = 0;
     private boolean isLocked = false;
     private int remainingLockoutSeconds = 0;
@@ -168,19 +168,30 @@ public class LoginController {
             // Load main application in background thread
             executorService.submit(() -> {
                 try {
-                    // Load FXML in background
-                    FXMLLoader loader = new FXMLLoader(getClass().getResource("log-entry.fxml"));
-                    Parent root = loader.load();
+                    // Try to load the main view - check the actual filename in your project
+                    // Try different possible filenames if needed
+                    FXMLLoader loader = null;
+                    try {
+                        loader = new FXMLLoader(getClass().getResource("main-view.fxml"));
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
 
-                    // Get controller instance to pass authenticated branch
-                    LogEntryController controller = loader.getController();
+                    if (loader == null) {
+                        // Try alternative filenames if the first one fails
+                        loader = new FXMLLoader(getClass().getResource("MainView.fxml"));
+                    }
+
+                    if (loader == null) {
+                        throw new IOException("Cannot find main view FXML file");
+                    }
+
+                    Parent root = loader.load();
+                    MainViewController controller = loader.getController();
 
                     // Update UI in JavaFX thread
                     Platform.runLater(() -> {
                         try {
-                            // Initialize controller with branch info
-                            controller.setAuthenticatedBranch(currentBranch);
-
                             // Create and show the main stage
                             Stage mainStage = new Stage();
                             mainStage.setTitle("VRM Inventory - " + currentBranch);
@@ -190,11 +201,6 @@ public class LoginController {
 
                             // Set up close request handler
                             mainStage.setOnCloseRequest(event -> {
-                                // Shutdown ExecutorService in controller
-                                if (controller != null) {
-                                    controller.shutdown();
-                                }
-
                                 // Shutdown this controller's executors
                                 shutdownExecutor();
 
@@ -217,7 +223,7 @@ public class LoginController {
                         } catch (Exception e) {
                             // Re-enable controls if something goes wrong
                             setControlsEnabled(true);
-                            statusLabel.setText("Error loading application");
+                            statusLabel.setText("Error loading application: " + e.getMessage());
 
                             // Close loading alert
                             if (loadingAlert != null) {
@@ -232,7 +238,7 @@ public class LoginController {
                     Platform.runLater(() -> {
                         // Re-enable controls
                         setControlsEnabled(true);
-                        statusLabel.setText("Error loading application");
+                        statusLabel.setText("Error loading application: " + e.getMessage());
 
                         // Close loading alert
                         if (loadingAlert != null) {
