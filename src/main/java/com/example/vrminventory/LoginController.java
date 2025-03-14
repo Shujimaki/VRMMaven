@@ -5,11 +5,8 @@ import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
-import javafx.scene.control.Alert;
-import javafx.scene.control.Button;
-import javafx.scene.control.Label;
-import javafx.scene.control.PasswordField;
-import javafx.scene.control.TextField;
+import javafx.scene.control.*;
+import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
@@ -47,7 +44,7 @@ public class LoginController {
 
     private ScheduledExecutorService lockoutTimer;
     private ScheduledExecutorService countdownTimer;
-    private Alert lockoutAlert;
+    private Alert lockoutAlert; // Keep this for updating its content
     private AtomicBoolean countdownActive = new AtomicBoolean(false);
 
     static {
@@ -75,7 +72,8 @@ public class LoginController {
 
     // For background loading
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
-    private Alert loadingAlert;
+    private Stage loadingStage; // Add this to store the loading stage
+
 
     @FXML
     private void initialize() {
@@ -159,8 +157,9 @@ public class LoginController {
             setControlsEnabled(false);
             statusLabel.setText("Logging in...");
 
-            // Show loading alert
-            showLoadingAlert();
+            // Show loading alert, and get a reference to the stage
+            loadingStage = showLoadingAlert("Please wait while the application is loading...");
+
 
             // Store authenticated branch immediately
             currentBranch = USER_BRANCHES.get(username);
@@ -168,23 +167,9 @@ public class LoginController {
             // Load main application in background thread
             executorService.submit(() -> {
                 try {
-                    // Try to load the main view - check the actual filename in your project
-                    // Try different possible filenames if needed
-                    FXMLLoader loader = null;
-                    try {
-                        loader = new FXMLLoader(getClass().getResource("main-view.fxml"));
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
 
-                    if (loader == null) {
-                        // Try alternative filenames if the first one fails
-                        loader = new FXMLLoader(getClass().getResource("MainView.fxml"));
-                    }
+                    FXMLLoader loader = new FXMLLoader(getClass().getResource("main-view.fxml"));
 
-                    if (loader == null) {
-                        throw new IOException("Cannot find main view FXML file");
-                    }
 
                     Parent root = loader.load();
                     MainViewController controller = loader.getController();
@@ -209,9 +194,9 @@ public class LoginController {
                                 System.exit(0);
                             });
 
-                            // Close the loading alert
-                            if (loadingAlert != null) {
-                                loadingAlert.close();
+                            // Close the loading stage *before* showing the main stage
+                            if (loadingStage != null && loadingStage.isShowing()) {
+                                loadingStage.close();
                             }
 
                             // Close the login stage
@@ -224,12 +209,12 @@ public class LoginController {
                             // Re-enable controls if something goes wrong
                             setControlsEnabled(true);
                             statusLabel.setText("Error loading application: " + e.getMessage());
-
-                            // Close loading alert
-                            if (loadingAlert != null) {
-                                loadingAlert.close();
+                            // Close the loading stage in case of an error
+                            if (loadingStage != null && loadingStage.isShowing()) {
+                                loadingStage.close();
                             }
 
+                            showErrorAlert("Failed to load main view screen", e.getMessage()); // Use consistent error alert
                             e.printStackTrace();
                         }
                     });
@@ -240,10 +225,12 @@ public class LoginController {
                         setControlsEnabled(true);
                         statusLabel.setText("Error loading application: " + e.getMessage());
 
-                        // Close loading alert
-                        if (loadingAlert != null) {
-                            loadingAlert.close();
+                        // Close the loading stage in case of an error
+                        if (loadingStage != null && loadingStage.isShowing()) {
+                            loadingStage.close();
                         }
+
+                        showErrorAlert("Failed to load the application", e.getMessage());// Use consistent error alert
 
                         e.printStackTrace();
                     });
@@ -307,8 +294,9 @@ public class LoginController {
 
                         // Update the alert content if it's showing
                         if (lockoutAlert != null && lockoutAlert.isShowing()) {
-                            lockoutAlert.setContentText("For security reasons, login has been disabled for " +
+                            updateLockoutAlert("Account Locked", "Too Many Failed Login Attempts", "For security reasons, login has been disabled for " +
                                     remainingLockoutSeconds + " seconds. Please try again later.");
+
                         }
                     });
 
@@ -385,34 +373,79 @@ public class LoginController {
 
         return null;
     }
+    // Reusable method for showing alerts with consistent style
+    private void showAlert(Alert.AlertType alertType, String title, String header, String content) {
+        Platform.runLater(() -> {
+            Alert alert = new Alert(alertType);
+            alert.setTitle(title);
+            alert.setHeaderText(header);
+            alert.setContentText(content);
+            alert.initModality(Modality.APPLICATION_MODAL);
+            alert.initStyle(StageStyle.UNDECORATED);
+            alert.showAndWait();
+        });
+    }
+    private Stage showLoadingAlert( String message) {
+
+        // Create a new stage for modal loading alert
+        Stage loadingStage = new Stage();
+        loadingStage.initModality(Modality.APPLICATION_MODAL);
+        loadingStage.initStyle(StageStyle.UNDECORATED);
+        loadingStage.setResizable(false);
+
+        // Create the loading alert content
+        VBox loadingBox = new VBox(10);
+        loadingBox.setAlignment(javafx.geometry.Pos.CENTER);
+        loadingBox.setPadding(new javafx.geometry.Insets(20));
+        loadingBox.setStyle("-fx-background-color: white; -fx-border-color: #cccccc; -fx-border-width: 1px;");
+
+        Label loadingLabel = new Label(message);
+        loadingLabel.setStyle("-fx-font-size: 14px;");
+
+        ProgressIndicator progress = new ProgressIndicator();
+        progress.setProgress(-1.0f); // Indeterminate progress
+
+        loadingBox.getChildren().addAll(loadingLabel, progress);
+
+        // Set scene for loading stage
+        Scene loadingScene = new Scene(loadingBox, 400, 150);
+        loadingStage.setScene(loadingScene);
+        loadingStage.show(); //show
+
+        return loadingStage; // Return the stage
+
+    }
+    private void showErrorAlert(String header, String message) {
+        Alert errorAlert = new Alert(Alert.AlertType.ERROR);
+        errorAlert.setTitle("Error");
+        errorAlert.setHeaderText(header);
+        errorAlert.setContentText("Error: " + message);
+        errorAlert.initModality(Modality.APPLICATION_MODAL); // Make sure it's modal
+        errorAlert.initStyle(StageStyle.UNDECORATED);       // Remove decorations
+        errorAlert.showAndWait();
+    }
+
+    private void updateLockoutAlert(String title, String header, String content){
+        if (lockoutAlert == null || !lockoutAlert.isShowing()){
+            lockoutAlert = new Alert(Alert.AlertType.WARNING);
+            lockoutAlert.setTitle(title);
+            lockoutAlert.setHeaderText(header);
+            lockoutAlert.initModality(Modality.NONE);
+            lockoutAlert.initStyle(StageStyle.UNDECORATED);
+            lockoutAlert.show(); //show and continue
+
+        }
+        lockoutAlert.setContentText(content); //update content
+
+    }
 
     private void showTimeoutAlert() {
-        Platform.runLater(() -> {
-            if (lockoutAlert == null || !lockoutAlert.isShowing()) {
-                lockoutAlert = new Alert(Alert.AlertType.WARNING);
-                lockoutAlert.setTitle("Account Locked");
-                lockoutAlert.setHeaderText("Too Many Failed Login Attempts");
-                lockoutAlert.setContentText("For security reasons, login has been disabled for " +
-                        remainingLockoutSeconds + " seconds. Please try again later.");
 
-                // Make it non-modal so user can see the status label updates
-                lockoutAlert.initModality(Modality.NONE);
-                lockoutAlert.show();
-            }
-        });
+        updateLockoutAlert("Account Locked", "Too Many Failed Login Attempts", "For security reasons, login has been disabled for " +
+                remainingLockoutSeconds + " seconds. Please try again later.");
     }
 
-    private void showLoadingAlert() {
-        Platform.runLater(() -> {
-            loadingAlert = new Alert(Alert.AlertType.INFORMATION);
-            loadingAlert.setTitle("Please Wait");
-            loadingAlert.setHeaderText("Loading Application");
-            loadingAlert.setContentText("Please wait while the application is loading...");
-            loadingAlert.initModality(Modality.APPLICATION_MODAL);
-            loadingAlert.initStyle(StageStyle.UNDECORATED);
-            loadingAlert.show();
-        });
-    }
+
 
     private void setControlsEnabled(boolean enabled) {
         usernameField.setDisable(!enabled);

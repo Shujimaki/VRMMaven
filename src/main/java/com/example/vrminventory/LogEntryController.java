@@ -1,5 +1,6 @@
 package com.example.vrminventory;
 
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
@@ -99,9 +100,10 @@ public class LogEntryController {
             String loginBranch = LoginController.getCurrentBranch();
             if (loginBranch != null && !loginBranch.isEmpty()) {
                 setAuthenticatedBranch(loginBranch);
+                mainLabel.setText(loginBranch.toUpperCase() + " Inventory List");
             }
 
-            mainLabel.setText(loginBranch.toUpperCase() + " Inventory List");
+
 
         } catch (Exception e) {
             statusLabel.setText("Initialization error: " + e.getMessage());
@@ -459,23 +461,114 @@ public class LogEntryController {
         }
     }
 
+
+
     @FXML
     protected void onBackButtonClick() throws IOException {
-        // Close the current log entry stage
+
+        Stage loadingStage = new Stage();
+        showLoadingAlert(loadingStage, "Loading Main View...");
         Stage currentStage = (Stage) entryVBox.getScene().getWindow();
-        currentStage.close();
+        currentStage.setOnCloseRequest(event -> event.consume()); // Prevent closing
+        currentStage.getScene().getRoot().setDisable(true);
+        loadingStage.show();
 
-        // Load the login screen again
-        FXMLLoader loader = new FXMLLoader(getClass().getResource("login.fxml"));
-        Parent root = loader.load();
+        // Load in BG
+        EXECUTOR.submit(()-> {
+            try {
+                FXMLLoader loader = new FXMLLoader(getClass().getResource("main-view.fxml"));
+                Parent root = loader.load();
 
-        // Create a new stage for the login screen
-        Stage loginStage = new Stage();
-        loginStage.setTitle("VRM Inventory System - Login");
-        loginStage.setScene(new Scene(root, 720, 720));
-        loginStage.setResizable(false);
-        loginStage.show();
+                MainViewController mainViewController = loader.getController();
+                mainViewController.setBranch(currentBranch);
+
+                //Update UI
+                Platform.runLater(()-> {
+                    try {
+                        loadingStage.close();
+                        currentStage.setOnCloseRequest(event -> {}); // Reset
+                        currentStage.getScene().getRoot().setDisable(false);
+
+                        Stage mainStage = new Stage();
+                        mainStage.setTitle("VRM Inventory - " + currentBranch);
+                        mainStage.setScene(new Scene(root, 1366, 768));
+                        mainStage.setMaximized(false);
+                        mainStage.setResizable(false);
+                        mainStage.setOnCloseRequest(e -> {
+                            mainViewController.shutdown();
+                            Platform.exit();
+                            System.exit(0);
+                        });
+                        currentStage.close();
+                        mainStage.show();
+
+
+
+                    } catch (Exception e) {
+                        loadingStage.close();
+                        currentStage.setOnCloseRequest(event -> {}); // Reset close handler
+                        currentStage.getScene().getRoot().setDisable(false);
+                        showErrorAlert("Failed to load main view screen", e.getMessage());
+                        e.printStackTrace();
+
+                    }
+
+                });
+
+            } catch (IOException e) {
+                Platform.runLater(() -> {
+                    loadingStage.close();
+
+                    // Re-enable main window
+                    currentStage.setOnCloseRequest(event -> {}); // Reset close handler
+                    currentStage.getScene().getRoot().setDisable(false);
+
+                    // Show error alert
+                    showErrorAlert("Failed to load main view screen", e.getMessage());
+                });
+
+                e.printStackTrace();
+            }
+
+
+        });
+
+
+
     }
+    private void showErrorAlert(String header, String message) {
+        Alert errorAlert = new Alert(Alert.AlertType.ERROR);
+        errorAlert.setTitle("Error");
+        errorAlert.setHeaderText(header);
+        errorAlert.setContentText("Error: " + message);
+        errorAlert.initModality(Modality.APPLICATION_MODAL); // Make sure it's modal
+        errorAlert.initStyle(StageStyle.UNDECORATED);       // Remove decorations
+        errorAlert.showAndWait();
+    }
+    private void showLoadingAlert(Stage loadingStage, String message) {
+        loadingStage.initModality(Modality.APPLICATION_MODAL);
+        loadingStage.initStyle(StageStyle.UNDECORATED);
+        loadingStage.setResizable(false);
+
+        // Create the loading alert content
+        VBox loadingBox = new VBox(10);
+        loadingBox.setAlignment(javafx.geometry.Pos.CENTER);
+        loadingBox.setPadding(new javafx.geometry.Insets(20));
+        loadingBox.setStyle("-fx-background-color: white; -fx-border-color: #cccccc; -fx-border-width: 1px;");
+
+        Label loadingLabel = new Label(message);
+        loadingLabel.setStyle("-fx-font-size: 14px;");
+
+        ProgressIndicator progress = new ProgressIndicator();
+        progress.setProgress(-1.0f); // Indeterminate progress
+
+        loadingBox.getChildren().addAll(loadingLabel, progress);
+
+        // Set scene for loading stage
+        Scene loadingScene = new Scene(loadingBox, 400, 150);
+        loadingStage.setScene(loadingScene);
+    }
+
 
     private void clearFields() {
         SKUField.clear();

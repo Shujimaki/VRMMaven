@@ -602,7 +602,7 @@ public class MainViewController {
         loadingBox.setPadding(new javafx.geometry.Insets(20));
         loadingBox.setStyle("-fx-background-color: white; -fx-border-color: #cccccc; -fx-border-width: 1px;");
 
-        Label loadingLabel = new Label("Please wait while the log entry screen is being prepared...");
+        Label loadingLabel = new Label("Loading Log Entry Screen...");
         loadingLabel.setStyle("-fx-font-size: 14px;");
 
         ProgressIndicator progress = new ProgressIndicator();
