@@ -35,8 +35,11 @@ import java.util.stream.Collectors;
 public class MainViewController {
     // Constants
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MM/dd/yyyy");
-    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss");
+    private static final DateTimeFormatter TIME_FORMATTER_HMS = DateTimeFormatter.ofPattern("H:mm:ss");
+    private static final DateTimeFormatter TIME_FORMATTER_HM = DateTimeFormatter.ofPattern("H:mm");
+    private static final DateTimeFormatter TIME_FORMATTER_FULL = DateTimeFormatter.ofPattern("HH:mm:ss");
     private static final ExecutorService EXECUTOR = Executors.newFixedThreadPool(2);
+
 
     // Lists
     private static final List<String> SEARCH_FILTERS = List.of("SKU", "Description");
@@ -130,37 +133,29 @@ public class MainViewController {
     private List<LogEntry> getLogEntries(String branch) throws IOException {
         List<LogEntry> entries = new ArrayList<>();
 
-        // Get sheet data from range I21:N (Date, Time, Activity, SKU, Quantity, Description)
-        String range = branch + "!I21:N";
+        // Extend range to ensure all logs are captured
+        String range = branch + "!I21:N5000";  // Increased range
         var response = sheetsService.getSheetsService().spreadsheets().values()
                 .get(sheetsService.getSpreadsheetId(), range)
                 .execute();
 
         if (response.getValues() != null) {
             for (List<Object> row : response.getValues()) {
-                // Skip empty rows
-                if (row.isEmpty()) continue;
+                // Skip empty rows or rows with insufficient data
+                if (row.isEmpty() || row.size() < 5) continue;
 
                 try {
-                    // Ensure we have enough columns
-                    if (row.size() >= 6) {
-                        String date = row.get(0).toString();
-                        String time = row.get(1).toString();
-                        String activity = convertActivityCodeToString(row.get(2).toString(), branch);
-                        int sku = Integer.parseInt(row.get(3).toString());
-                        int quantity = Integer.parseInt(row.get(4).toString());
-                        String description = row.size() > 5 ? row.get(5).toString() : "";
+                    String date = row.get(0).toString().trim();
+                    String time = row.get(1).toString().trim();
+                    String activity = convertActivityCodeToString(row.get(2).toString().trim(), branch);
+                    int sku = Integer.parseInt(row.get(3).toString().trim());
+                    int quantity = Integer.parseInt(row.get(4).toString().trim());
+                    String description = row.size() > 5 ? row.get(5).toString().trim() : "";
 
-                        // Create LogEntry and add to list
-                        LogEntry logEntry = new LogEntry(date, time, activity, sku, quantity, description);
-
-                        // Get additional item details
-                        enrichLogEntryWithItemDetails(logEntry, branch);
-
-                        entries.add(logEntry);
-                    }
-                } catch (NumberFormatException e) {
-                    System.err.println("Invalid number format in log entry: " + e.getMessage());
+                    // Create LogEntry and add to list
+                    LogEntry logEntry = new LogEntry(date, time, activity, sku, quantity, description);
+                    enrichLogEntryWithItemDetails(logEntry, branch);
+                    entries.add(logEntry);
                 } catch (Exception e) {
                     System.err.println("Error processing log entry: " + e.getMessage());
                 }
@@ -507,15 +502,40 @@ public class MainViewController {
 
         switch (typeFilter) {
             case "Date and Time":
-                // Combined date and time comparison
+                // More robust DateTime comparator
                 primaryComparator = Comparator.comparing(entry -> {
                     try {
+                        // Parse the date
                         LocalDate date = LocalDate.parse(entry.getDate(), DATE_FORMATTER);
-                        LocalTime time = LocalTime.parse(entry.getTime(), TIME_FORMATTER);
+
+                        // Try different time formats
+                        LocalTime time;
+                        String timeStr = entry.getTime().trim();
+
+                        try {
+                            // First try HH:mm:ss format
+                            time = LocalTime.parse(timeStr, TIME_FORMATTER_FULL);
+                        } catch (Exception e1) {
+                            try {
+                                // Then try H:mm:ss format (single digit hour)
+                                time = LocalTime.parse(timeStr, TIME_FORMATTER_HMS);
+                            } catch (Exception e2) {
+                                try {
+                                    // Finally try H:mm format (no seconds)
+                                    time = LocalTime.parse(timeStr, TIME_FORMATTER_HM);
+                                } catch (Exception e3) {
+                                    // If all parsing fails, use midnight as default
+                                    System.err.println("Could not parse time: " + timeStr + " for date: " + entry.getDate());
+                                    time = LocalTime.MIDNIGHT;
+                                }
+                            }
+                        }
+
                         return LocalDateTime.of(date, time);
                     } catch (Exception e) {
-                        // Fallback to string comparison if parsing fails
-                        return LocalDateTime.now(); // Default value
+                        // For unparseable dates, use a default value
+                        System.err.println("Date parsing error: " + e.getMessage() + " for " + entry.getDate());
+                        return LocalDateTime.now();
                     }
                 });
                 break;

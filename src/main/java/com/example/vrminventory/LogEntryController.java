@@ -3,8 +3,10 @@ package com.example.vrminventory;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
+import javafx.geometry.Insets;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
@@ -20,11 +22,10 @@ import javafx.util.Callback;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.UnaryOperator;
@@ -35,6 +36,7 @@ public class LogEntryController {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MM/dd/yyyy");
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss");
     private static final ExecutorService EXECUTOR = Executors.newFixedThreadPool(2);
+
 
     // Lists
     private static final List<String> BRANCH_LIST = List.of("Branch1", "Branch2", "Branch3", "Warehouse");
@@ -427,38 +429,141 @@ public class LogEntryController {
             return;
         }
 
-        try {
-            // Load confirmation dialog
-            FXMLLoader loader = new FXMLLoader(getClass().getResource("log-entry-confirm.fxml"));
-            LogEntryConfirmController confirmController = new LogEntryConfirmController(
-                    sheetsService,
-                    branchComboBox.getValue(),
-                    Integer.parseInt(SKUField.getText()),
-                    activityComboBox.getValue(),
-                    quantitySpinner.getValue(),
-                    descriptionField != null ? descriptionField.getText() : "TextFieldDesc",
-                    this // Pass reference to this controller for callback
-            );
-            loader.setController(confirmController);
+        int sku = Integer.parseInt(SKUField.getText());
+        String branch = branchComboBox.getValue();
+        String activity = activityComboBox.getValue();
+        int quantity = quantitySpinner.getValue();
+        String description = descriptionField != null ? descriptionField.getText() : "";
 
-            Parent root = loader.load();
-
-            // Create and show the confirmation stage
-            Stage confirmStage = new Stage();
-            confirmStage.initModality(Modality.APPLICATION_MODAL);
-            confirmStage.initStyle(StageStyle.UNDECORATED);
-            confirmStage.setScene(new Scene(root));
-            confirmStage.showAndWait();
-
-            // Clear fields if confirmed successfully
-            if (confirmController.isConfirmed()) {
-                clearFields();
-                // No need to call refreshData here, as it's called from confirm controller
-            }
-        } catch (IOException e) {
-            statusLabel.setText("Error loading confirmation dialog: " + e.getMessage());
-            e.printStackTrace();
+        // Find item details for the SKU
+        InventoryItem item = findItemBySku(sku);
+        if (item == null) {
+            statusLabel.setText("SKU not found in inventory.");
+            return;
         }
+
+        // Create confirmation alert with custom content
+        Alert confirmationAlert = new Alert(Alert.AlertType.CONFIRMATION);
+        confirmationAlert.setTitle("Confirm Log Entry");
+        confirmationAlert.setHeaderText("Please confirm the following details:");
+
+        // Create grid pane for organized data display
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(20, 150, 10, 10));
+
+        // Add entry details
+        addDetailRow(grid, "Branch:", branch, 0);
+        addDetailRow(grid, "SKU:", String.valueOf(sku), 1);
+        addDetailRow(grid, "Name:", item.getName(), 2);
+        addDetailRow(grid, "Category:", item.getCategory(), 3);
+        addDetailRow(grid, "Price:", String.format("₱%.2f", item.getPrice()), 4);
+        addDetailRow(grid, "Activity:", activity, 5);
+        addDetailRow(grid, "Quantity:", String.valueOf(quantity), 6);
+        addDetailRow(grid, "Description:", description, 7);
+
+        // Add the grid to dialog pane
+        confirmationAlert.getDialogPane().setContent(grid);
+
+        // Show confirmation dialog
+        Optional<ButtonType> result = confirmationAlert.showAndWait();
+
+        if (result.isPresent() && result.get() == ButtonType.OK) {
+            // Proceed with log entry
+            confirmLogEntry(branch, sku, activity, quantity, description);
+        }
+    }
+
+    // Helper method to add detail rows to the grid
+    private void addDetailRow(GridPane grid, String label, String value, int row) {
+        grid.add(new Label(label), 0, row);
+        Label valueLabel = new Label(value);
+        valueLabel.setWrapText(true);
+        grid.add(valueLabel, 1, row);
+    }
+
+    private InventoryItem findItemBySku(int sku) {
+        for (InventoryItem item : itemList) {
+            if (item.getSku() == sku) {
+                return item;
+            }
+        }
+        return null; // SKU not found
+    }
+
+    private void confirmLogEntry(String branch, int sku, String activity, int quantity, String description) {
+        // Create processing alert
+        Alert processingAlert = new Alert(Alert.AlertType.INFORMATION);
+        processingAlert.setTitle("Processing");
+        processingAlert.setHeaderText(null);
+        processingAlert.setContentText("Processing...");
+        processingAlert.show();
+
+        // Create a task for background processing
+        Task<Integer> task = new Task<>() {
+            @Override
+            protected Integer call() throws Exception {
+                // Prepare data
+                List<Object> dataToWrite;
+
+                if (branch.equals("Warehouse")) {
+                    int activityCode = "Supply".equals(activity) ? 1 : 2; // 1 for Supply, 2 for Transfer-Out
+                    dataToWrite = Arrays.asList(
+                            LocalDate.now().format(DATE_FORMATTER),
+                            LocalTime.now().format(TIME_FORMATTER),
+                            activityCode,
+                            sku,
+                            quantity,
+                            description
+                    );
+                } else {
+                    int activityCode = switch (activity) {
+                        case "Sale" -> 1;
+                        case "Transfer-In" -> 2;
+                        case "Transfer-Out" -> 3;
+                        case "Return/Refund" -> 4;
+                        default -> throw new IllegalArgumentException("Invalid activity");
+                    };
+                    dataToWrite = Arrays.asList(
+                            LocalDate.now().format(DATE_FORMATTER),
+                            LocalTime.now().format(TIME_FORMATTER),
+                            activityCode,
+                            sku,
+                            quantity,
+                            description
+                    );
+                }
+
+                // Find next row and write data
+                String branchPrefix = branch + "!";
+                String range = sheetsService.findNextRow(branchPrefix);
+                return sheetsService.writeData(range, dataToWrite);
+            }
+        };
+
+        task.setOnSucceeded(event -> {
+            processingAlert.close();
+            int cellsUpdated = task.getValue();
+            Alert resultAlert = new Alert(Alert.AlertType.INFORMATION);
+            resultAlert.setTitle("Log Entry Result");
+            resultAlert.setHeaderText(null);
+            resultAlert.setContentText(cellsUpdated > 0 ? "Log entry added successfully." : "Failed to update log.");
+            resultAlert.show();
+            refreshData(); // Refresh data after adding log
+        });
+
+        task.setOnFailed(event -> {
+            processingAlert.close();
+            Alert failAlert = new Alert(Alert.AlertType.ERROR);
+            failAlert.setTitle("Log Entry Failed");
+            failAlert.setHeaderText(null);
+            failAlert.setContentText("Failed to update log: " + task.getException().getMessage());
+            failAlert.show();
+        });
+
+        // Start the task in a background thread
+        new Thread(task).start();
     }
 
 
