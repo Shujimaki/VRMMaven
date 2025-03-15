@@ -163,47 +163,54 @@ public class GoogleSheetsService {
      * @throws IOException If an API error occurs
      */
     public List<InventoryItem> getAllInventoryItems(String sheetName) throws IOException {
-        if (cachedInventoryItems != null) {
-            return cachedInventoryItems; // Return cached items if available
-        }
+        try {
+            if (cachedInventoryItems != null) {
+                return cachedInventoryItems; // Return cached items if available
+            }
 
-        List<InventoryItem> items = new ArrayList<>();
+            List<InventoryItem> items = new ArrayList<>();
 
-        // Get sheet metadata to verify sheet exists
-        Spreadsheet spreadsheet = sheetsService.spreadsheets().get(spreadsheetId).execute();
-        boolean sheetExists = spreadsheet.getSheets().stream()
-                .anyMatch(sheet -> sheetName.equals(sheet.getProperties().getTitle()));
+            // Get sheet metadata to verify sheet exists
+            Spreadsheet spreadsheet = sheetsService.spreadsheets().get(spreadsheetId).execute();
+            boolean sheetExists = spreadsheet.getSheets().stream()
+                    .anyMatch(sheet -> sheetName.equals(sheet.getProperties().getTitle()));
 
-        if (!sheetExists) {
-            throw new IOException(sheetName + " sheet not found");
-        }
+            if (!sheetExists) {
+                throw new IOException(sheetName + " sheet not found");
+            }
 
-        // Fetch data from sheet
-        String range = sheetName + "!B" + DEFAULT_START_ROW + ":F";
-        ValueRange response = sheetsService.spreadsheets().values()
-                .get(spreadsheetId, range)
-                .execute();
+            // Fetch data from sheet
+            String range = sheetName + "!B" + DEFAULT_START_ROW + ":F";
+            ValueRange response = sheetsService.spreadsheets().values()
+                    .get(spreadsheetId, range)
+                    .execute();
 
-        if (response.getValues() != null) {
-            for (List<Object> row : response.getValues()) {
-                if (row.size() >= 5) {
-                    try {
-                        int sku = Integer.parseInt(row.get(0).toString());
-                        String name = row.get(1).toString();
-                        String category = row.get(2).toString();
-                        double price = Double.parseDouble(row.get(3).toString());
-                        int quantity = Integer.parseInt(row.get(4).toString());
+            if (response.getValues() != null) {
+                for (List<Object> row : response.getValues()) {
+                    if (row.size() >= 5) {
+                        try {
+                            int sku = Integer.parseInt(row.get(0).toString());
+                            String name = row.get(1).toString();
+                            String category = row.get(2).toString();
+                            double price = Double.parseDouble(row.get(3).toString());
+                            int quantity = Integer.parseInt(row.get(4).toString());
 
-                        items.add(new InventoryItem(sku, name, category, price, quantity));
-                    } catch (NumberFormatException e) {
-                        System.err.println("Invalid number format: " + e.getMessage());
+                            items.add(new InventoryItem(sku, name, category, price, quantity));
+                        } catch (NumberFormatException e) {
+                            System.err.println("Invalid number format: " + e.getMessage());
+                        }
                     }
                 }
             }
+
+            cachedInventoryItems = items; // Cache the items for future use
+            return items;
+
+            } catch (IOException e) {
+            Logger.logError("Failed to get inventory items from sheet: " + sheetName, e);
+            return Collections.emptyList(); // Return an empty list on error
         }
 
-        cachedInventoryItems = items; // Cache the items for future use
-        return items;
     }
 
     public void clearCache() {

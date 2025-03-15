@@ -430,49 +430,63 @@ public class LogEntryController {
             return;
         }
 
-        int sku = Integer.parseInt(SKUField.getText());
-        String branch = branchComboBox.getValue();
-        String activity = activityComboBox.getValue();
-        int quantity = quantitySpinner.getValue();
-        String description = descriptionField != null ? descriptionField.getText() : "";
+        // Prepare data and call a method to handle the log entry
+        handleLogEntry();
 
-        // Find item details for the SKU
-        InventoryItem item = findItemBySku(sku);
-        if (item == null) {
-            statusLabel.setText("SKU not found in inventory.");
-            return;
-        }
+    }
 
-        // Create confirmation alert with custom content
-        Alert confirmationAlert = new Alert(Alert.AlertType.CONFIRMATION);
-        confirmationAlert.setTitle("Confirm Log Entry");
-        confirmationAlert.setHeaderText("Please confirm the following details:");
+    @FXML
+    private void handleLogEntry() {
+        // Logic for handling log entry, including API calls
+        try {
+            int sku = Integer.parseInt(SKUField.getText());
+            String branch = branchComboBox.getValue();
+            String activity = activityComboBox.getValue();
+            int quantity = quantitySpinner.getValue();
+            String description = descriptionField != null ? descriptionField.getText() : "";
 
-        // Create grid pane for organized data display
-        GridPane grid = new GridPane();
-        grid.setHgap(10);
-        grid.setVgap(10);
-        grid.setPadding(new Insets(20, 150, 10, 10));
+            // Find item details for the SKU
+            InventoryItem item = findItemBySku(sku);
+            if (item == null) {
+                statusLabel.setText("SKU not found in inventory.");
+                return;
+            }
 
-        // Add entry details
-        addDetailRow(grid, "Branch:", branch, 0);
-        addDetailRow(grid, "SKU:", String.valueOf(sku), 1);
-        addDetailRow(grid, "Name:", item.getName(), 2);
-        addDetailRow(grid, "Category:", item.getCategory(), 3);
-        addDetailRow(grid, "Price:", String.format("₱%.2f", item.getPrice()), 4);
-        addDetailRow(grid, "Activity:", activity, 5);
-        addDetailRow(grid, "Quantity:", String.valueOf(quantity), 6);
-        addDetailRow(grid, "Description:", description, 7);
+            // Create confirmation alert with custom content
+            Alert confirmationAlert = new Alert(Alert.AlertType.CONFIRMATION);
+            confirmationAlert.setTitle("Confirm Log Entry");
+            confirmationAlert.setHeaderText("Please confirm the following details:");
 
-        // Add the grid to dialog pane
-        confirmationAlert.getDialogPane().setContent(grid);
+            // Create grid pane for organized data display
+            GridPane grid = new GridPane();
+            grid.setHgap(10);
+            grid.setVgap(10);
+            grid.setPadding(new Insets(20, 150, 10, 10));
 
-        // Show confirmation dialog
-        Optional<ButtonType> result = confirmationAlert.showAndWait();
+            // Add entry details
+            addDetailRow(grid, "Branch:", branch, 0);
+            addDetailRow(grid, "SKU:", String.valueOf(sku), 1);
+            addDetailRow(grid, "Name:", item.getName(), 2);
+            addDetailRow(grid, "Category:", item.getCategory(), 3);
+            addDetailRow(grid, "Price:", String.format("₱%.2f", item.getPrice()), 4);
+            addDetailRow(grid, "Activity:", activity, 5);
+            addDetailRow(grid, "Quantity:", String.valueOf(quantity), 6);
+            addDetailRow(grid, "Description:", description, 7);
 
-        if (result.isPresent() && result.get() == ButtonType.OK) {
-            // Proceed with log entry
-            confirmLogEntry(branch, sku, activity, quantity, description);
+            // Add the grid to dialog pane
+            confirmationAlert.getDialogPane().setContent(grid);
+
+            // Show confirmation dialog
+            Optional<ButtonType> result = confirmationAlert.showAndWait();
+
+            if (result.isPresent() && result.get() == ButtonType.OK) {
+                // Proceed with log entry
+                confirmLogEntry(branch, sku, activity, quantity, description);
+            }
+
+        } catch (Exception e) {
+            Logger.logError("Failed to handle log entry", e);
+            showErrorAlert("Log Entry Error", "An error occurred while processing the log entry.");
         }
     }
 
