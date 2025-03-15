@@ -43,6 +43,9 @@ public class GoogleSheetsService {
     private final Sheets sheetsService;
     private final String spreadsheetId;
 
+    // Cache for inventory items
+    private List<InventoryItem> cachedInventoryItems = null;
+
     /**
      * Constructs a GoogleSheetsService with the default spreadsheet ID.
      */
@@ -153,13 +156,17 @@ public class GoogleSheetsService {
     }
 
     /**
-     * Retrieves all inventory items from a specific sheet.
+     * Retrieves all inventory items from a specific sheet, using cache if available.
      *
      * @param sheetName The name of the sheet to read from (e.g., "Branch1")
      * @return A list of InventoryItem objects
      * @throws IOException If an API error occurs
      */
     public List<InventoryItem> getAllInventoryItems(String sheetName) throws IOException {
+        if (cachedInventoryItems != null) {
+            return cachedInventoryItems; // Return cached items if available
+        }
+
         List<InventoryItem> items = new ArrayList<>();
 
         // Get sheet metadata to verify sheet exists
@@ -195,7 +202,12 @@ public class GoogleSheetsService {
             }
         }
 
+        cachedInventoryItems = items; // Cache the items for future use
         return items;
+    }
+
+    public void clearCache() {
+        cachedInventoryItems = null;
     }
 
     /**

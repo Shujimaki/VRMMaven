@@ -105,8 +105,6 @@ public class LogEntryController {
                 mainLabel.setText(loginBranch.toUpperCase() + " Inventory List");
             }
 
-
-
         } catch (Exception e) {
             statusLabel.setText("Initialization error: " + e.getMessage());
             e.printStackTrace();
@@ -128,6 +126,9 @@ public class LogEntryController {
     // New method to refresh data from Google Sheets
     public void refreshData() {
         try {
+            // Clear cache to ensure fresh data
+            sheetsService.clearCache();
+
             // Get current branch selection
             String selectedBranch = branchComboBox.getValue();
             if (selectedBranch != null) {
