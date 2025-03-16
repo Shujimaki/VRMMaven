@@ -1,6 +1,7 @@
 package com.example.vrminventory;
 
 public class LogEntry {
+    private String branch;
     private String date;
     private String time;
     private String activity;
@@ -13,7 +14,8 @@ public class LogEntry {
     private String itemCategory;
     private double itemPrice;
 
-    public LogEntry(String date, String time, String activity, int sku, int quantity, String description) {
+    public LogEntry(String branch, String date, String time, String activity, int sku, int quantity, String description) {
+        this.branch = branch;
         this.date = date;
         this.time = time;
         this.activity = activity;
@@ -23,6 +25,16 @@ public class LogEntry {
     }
 
     // Getters and setters
+
+
+    public String getBranch() {
+        return branch;
+    }
+
+    public void setBranch(String branch) {
+        this.branch = branch;
+    }
+
     public String getDate() {
         return date;
     }
@@ -97,6 +109,6 @@ public class LogEntry {
 
     @Override
     public String toString() {
-        return date + " | " + time + " | " + activity + " | SKU: " + sku + " | Qty: " + quantity;
+        return branch + " | " + date + " | " + time + " | " + activity + " | SKU: " + sku + " | Qty: " + quantity;
     }
 }
