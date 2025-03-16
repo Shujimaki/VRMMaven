@@ -44,8 +44,8 @@ public class LoginController {
 
     private ScheduledExecutorService lockoutTimer;
     private ScheduledExecutorService countdownTimer;
-    private Alert lockoutAlert; // Keep this for updating its content
-    private AtomicBoolean countdownActive = new AtomicBoolean(false);
+    private Alert lockoutAlert; // Keep for updating its content
+    private final AtomicBoolean countdownActive = new AtomicBoolean(false);
 
     static {
         // Initialize credentials map

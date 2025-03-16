@@ -17,6 +17,7 @@ import javafx.scene.paint.Color;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
+import javafx.util.Callback;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
@@ -289,9 +290,9 @@ public class MainViewController {
         double totalWidth = logListView.getPrefWidth();
         double[] columnWidths = {
                 totalWidth * 0.22,  // Date column
-                totalWidth * 0.28,  // Time column
-                totalWidth * 0.20,  // Activity column
-                totalWidth * 0.27,  // SKU column
+                totalWidth * 0.24,  // Time column
+                totalWidth * 0.23,  // Activity column
+                totalWidth * 0.25,  // SKU column
                 totalWidth * 0.23,  // Quantity column
                 totalWidth * 0.20   // Description column
         };
@@ -336,7 +337,7 @@ public class MainViewController {
         grid.add(label, column, 0);
     }
 
-    private javafx.util.Callback<ListView<LogEntry>, ListCell<LogEntry>> createLogCellFactory(double[] columnWidths) {
+    private Callback<ListView<LogEntry>, ListCell<LogEntry>> createLogCellFactory(double[] columnWidths) {
         return param -> new ListCell<>() {
             private final GridPane gridPane = new GridPane();
             private final Label dateLabel = new Label();

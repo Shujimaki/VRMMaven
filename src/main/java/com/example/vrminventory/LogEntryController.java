@@ -566,6 +566,7 @@ public class LogEntryController {
             resultAlert.setContentText(cellsUpdated > 0 ? "Log entry added successfully." : "Failed to update log.");
             resultAlert.show();
             refreshData(); // Refresh data after adding log
+            clearFields();
         });
 
         task.setOnFailed(event -> {
