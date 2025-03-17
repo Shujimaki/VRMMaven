@@ -291,7 +291,7 @@ public class GoogleSheetsService {
                 if (!row.isEmpty()) {
                     String category = row.get(0).toString().trim(); // Assuming the category is in the first column
                     if (!category.isEmpty()) {
-                        uniqueCategories.add(category.toLowerCase()); // Add to set in lowercase for case insensitivity
+                        uniqueCategories.add(category.toUpperCase()); // Add to set in lowercase for case insensitivity
                     }
                 }
             }

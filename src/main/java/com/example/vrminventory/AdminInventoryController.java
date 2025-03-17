@@ -1,6 +1,5 @@
 package com.example.vrminventory;
 
-import com.google.api.services.sheets.v4.model.ValueRange;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -23,8 +22,6 @@ import javafx.util.Callback;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
-import java.time.LocalDate;
-import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -61,7 +58,7 @@ public class AdminInventoryController {
     @FXML private TextField nameField;
     @FXML private Label mainLabel;
     @FXML private Label statusLabel;
-    @FXML private Spinner<Integer> priceSpinner;
+    @FXML private Spinner<Double> priceSpinner;
     @FXML private ComboBox<String> categoryComboBox;
 
     @FXML private VBox entryVBox;
@@ -225,13 +222,22 @@ public class AdminInventoryController {
 
     @FXML
     private void initializePriceSpinner() {
-        SpinnerValueFactory.IntegerSpinnerValueFactory valueFactory =
-                new SpinnerValueFactory.IntegerSpinnerValueFactory(0, Integer.MAX_VALUE, 1);
+        // Create a DoubleSpinnerValueFactory with a minimum of 0.00, maximum of Double.MAX_VALUE, and initial value of 0.00
+        SpinnerValueFactory.DoubleSpinnerValueFactory valueFactory =
+                new SpinnerValueFactory.DoubleSpinnerValueFactory(0.00, Double.MAX_VALUE, 0.00, 1.00);
         priceSpinner.setValueFactory(valueFactory);
 
-        UnaryOperator<TextFormatter.Change> filter = change ->
-                change.getControlNewText().matches("\\d*") ? change : null;
+        // Create a filter to allow only valid decimal numbers with up to two decimal places
+        UnaryOperator<TextFormatter.Change> filter = change -> {
+            String newText = change.getControlNewText();
+            // Allow empty input or valid decimal numbers with up to two decimal places
+            if (newText.isEmpty() || newText.matches("\\d*\\.?\\d{0,2}")) {
+                return change; // Accept the change
+            }
+            return null; // Reject the change
+        };
 
+        // Set the text formatter with the filter
         priceSpinner.getEditor().setTextFormatter(new TextFormatter<>(filter));
 
         // Set the font size and family for the spinner's editor TextField
@@ -437,7 +443,7 @@ public class AdminInventoryController {
             int sku = Integer.parseInt(SKUField.getText());
             String name = nameField.getText();
             String category = categoryComboBox.getValue();
-            int price = priceSpinner.getValue();
+            double price = priceSpinner.getValue();
 
             // Find item details for the SKU
             InventoryItem item = findItemBySku(sku);
@@ -446,10 +452,14 @@ public class AdminInventoryController {
                 return;
             }
 
+            System.out.println("1");
+
             // Create confirmation alert with custom content
             Alert confirmationAlert = new Alert(Alert.AlertType.CONFIRMATION);
             confirmationAlert.setTitle("Confirm Log Entry");
             confirmationAlert.setHeaderText("Please confirm the following details:");
+
+            System.out.println("2");
 
             // Create grid pane for organized data display
             GridPane grid = new GridPane();
@@ -457,26 +467,35 @@ public class AdminInventoryController {
             grid.setVgap(10);
             grid.setPadding(new Insets(20, 150, 10, 10));
 
+            System.out.println("3");
+
             // Add inventory entry details
             addDetailRow(grid, "SKU:", String.valueOf(sku), 1);
             addDetailRow(grid, "Name:", name, 2);
             addDetailRow(grid, "Category:", category, 3);
             addDetailRow(grid, "Price:", String.format("₱%.2f", price), 4);
 
+
+            System.out.println("4");
+
             // Add the grid to dialog pane
             confirmationAlert.getDialogPane().setContent(grid);
+
+            System.out.println("5");
+
 
             // Show confirmation dialog
             Optional<ButtonType> result = confirmationAlert.showAndWait();
 
             if (result.isPresent() && result.get() == ButtonType.OK) {
                 // Proceed with log entry
+                System.out.println("preconfirminventory)");
                 confirmInventoryEntry(sku, name, category, price);
             }
 
         } catch (Exception e) {
             Logger.logError("Failed to handle inventory entry", e);
-            showErrorAlert("Log Entry Error", "An error occurred while processing the inventory entry.");
+            showErrorAlert("Inventory Entry Error", "An error occurred while processing the inventory entry.");
         }
     }
 
@@ -497,7 +516,7 @@ public class AdminInventoryController {
         return null; // SKU not found
     }
 
-    private void confirmInventoryEntry(int sku, String name, String category, int price) {
+    private void confirmInventoryEntry(int sku, String name, String category, double price) {
         // Create processing alert
         Alert processingAlert = new Alert(Alert.AlertType.INFORMATION);
         processingAlert.setTitle("Processing");
@@ -660,7 +679,7 @@ public class AdminInventoryController {
 
     private void clearFields() {
         SKUField.clear();
-        priceSpinner.getValueFactory().setValue(1);
+        priceSpinner.getValueFactory().setValue(1.00);
         nameField.clear();
         statusLabel.setText("New Inventory added!");
     }
