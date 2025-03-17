@@ -44,8 +44,8 @@ public class LoginController {
 
     private ScheduledExecutorService lockoutTimer;
     private ScheduledExecutorService countdownTimer;
-    private Alert lockoutAlert; // Keep this for updating its content
-    private AtomicBoolean countdownActive = new AtomicBoolean(false);
+    private Alert lockoutAlert; // Keep for updating its content
+    private final AtomicBoolean countdownActive = new AtomicBoolean(false);
 
     static {
         // Initialize credentials map
@@ -53,12 +53,14 @@ public class LoginController {
         CREDENTIALS.put("branch2", "vrmbranch2");
         CREDENTIALS.put("branch3", "vrmbranch3");
         CREDENTIALS.put("warehouse", "vrmwarehouse");
+        CREDENTIALS.put("admin", "vrmadmin");
 
         // Map users to their respective branches
         USER_BRANCHES.put("branch1", "Branch1");
         USER_BRANCHES.put("branch2", "Branch2");
         USER_BRANCHES.put("branch3", "Branch3");
         USER_BRANCHES.put("warehouse", "Warehouse");
+        USER_BRANCHES.put("admin", "GeneralLogSheet");
     }
 
     // FXML components
@@ -168,36 +170,38 @@ public class LoginController {
             executorService.submit(() -> {
                 try {
 
-                    FXMLLoader loader = new FXMLLoader(getClass().getResource("main-view.fxml"));
+                    FXMLLoader loader;
 
+                    if (username.equals("admin")) {
+                        loader = new FXMLLoader(getClass().getResource("admin-main-view.fxml"));
+                    } else {
+                        loader = new FXMLLoader(getClass().getResource("main-view.fxml"));
+                    }
 
                     Parent root = loader.load();
-                    MainViewController controller = loader.getController();
+
+                    if (username.equals("admin")) {
+                        AdminMainViewController controller = loader.getController();
+                        // Perform any admin-specific setup here
+                    } else {
+                        MainViewController controller = loader.getController();
+                        // Perform any non-admin setup here
+                    }
 
                     // Update UI in JavaFX thread
                     Platform.runLater(() -> {
                         try {
-                            // Create and show the main stage
-                            Stage mainStage = new Stage();
-                            mainStage.setTitle("VRM Inventory - " + currentBranch);
-                            mainStage.setScene(new Scene(root, 1366, 768));
-                            mainStage.setMaximized(false);
-                            mainStage.setResizable(false);
-
-                            // Set up close request handler
-                            mainStage.setOnCloseRequest(event -> {
-                                // Shutdown this controller's executors
-                                shutdownExecutor();
-
-                                // Force exit the application
-                                Platform.exit();
-                                System.exit(0);
-                            });
-
                             // Close the loading stage *before* showing the main stage
                             if (loadingStage != null && loadingStage.isShowing()) {
                                 loadingStage.close();
                             }
+
+                            // Create and show the main stage
+                            Stage mainStage = new Stage();
+                            mainStage.setTitle("VRM Inventory - " + (username.equals("admin") ? "ADMIN" : currentBranch));
+                            mainStage.setScene(new Scene(root, 1366, 768));
+                            mainStage.setMaximized(false);
+                            mainStage.setResizable(false);
 
                             // Close the login stage
                             ((Stage) loginButton.getScene().getWindow()).close();

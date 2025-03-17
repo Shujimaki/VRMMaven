@@ -21,9 +21,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.security.GeneralSecurityException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 /**
  * Service class for Google Sheets API operations
@@ -42,6 +40,9 @@ public class GoogleSheetsService {
     // Fields
     private final Sheets sheetsService;
     private final String spreadsheetId;
+
+    // Cache for inventory items
+    private List<InventoryItem> cachedInventoryItems = null;
 
     /**
      * Constructs a GoogleSheetsService with the default spreadsheet ID.
@@ -99,7 +100,14 @@ public class GoogleSheetsService {
      * @throws IOException If an API error occurs
      */
     public String findNextRow(String branch) throws IOException {
-        return findNextRow(branch, DEFAULT_START_ROW);
+        String nextRow;
+        if (branch.equals("InventoryList!")){
+            nextRow = findNextRow(branch, 12);
+        }
+        else{
+            nextRow = findNextRow(branch, DEFAULT_START_ROW);
+        }
+        return nextRow;
     }
 
     /**
@@ -111,26 +119,53 @@ public class GoogleSheetsService {
      * @throws IOException If an API error occurs
      */
     public String findNextRow(String branch, int startRow) throws IOException {
-        String range = branch + "I" + startRow + ":N";
-        ValueRange response = sheetsService.spreadsheets().values()
-                .get(spreadsheetId, range)
-                .execute();
+        if (branch.equals("InventoryList!")){
+            String range = branch + "F" + startRow + ":I";
+            ValueRange response = sheetsService.spreadsheets().values()
+                    .get(spreadsheetId, range)
+                    .execute();
 
-        if (response.getValues() == null || response.getValues().isEmpty()) {
-            return branch + "I" + startRow + ":N" + startRow;
-        }
-
-        // Find first empty row
-        for (int i = 0; i < response.getValues().size(); i++) {
-            if (response.getValues().get(i).isEmpty()) {
-                int rowNum = startRow + i;
-                return branch + "I" + rowNum + ":N" + rowNum;
+            if (response.getValues() == null || response.getValues().isEmpty()) {
+                return branch + "F" + startRow + ":I" + startRow;
             }
+
+            // Find first empty row
+            for (int i = 0; i < response.getValues().size(); i++) {
+                if (response.getValues().get(i).isEmpty()) {
+                    int rowNum = startRow + i;
+                    return branch + "F" + rowNum + ":I" + rowNum;
+                }
+            }
+
+            // If no empty row found, return next row after last fetched row
+            int nextRow = startRow + response.getValues().size();
+            return branch + "F" + nextRow + ":I" + nextRow;
         }
 
-        // If no empty row found, return next row after last fetched row
-        int nextRow = startRow + response.getValues().size();
-        return branch + "I" + nextRow + ":N" + nextRow;
+        else{
+            String range = branch + "I" + startRow + ":N";
+            ValueRange response = sheetsService.spreadsheets().values()
+                    .get(spreadsheetId, range)
+                    .execute();
+
+            if (response.getValues() == null || response.getValues().isEmpty()) {
+                return branch + "I" + startRow + ":N" + startRow;
+            }
+
+            // Find first empty row
+            for (int i = 0; i < response.getValues().size(); i++) {
+                if (response.getValues().get(i).isEmpty()) {
+                    int rowNum = startRow + i;
+                    return branch + "I" + rowNum + ":N" + rowNum;
+                }
+            }
+
+            // If no empty row found, return next row after last fetched row
+            int nextRow = startRow + response.getValues().size();
+            return branch + "I" + nextRow + ":N" + nextRow;
+        }
+
+
     }
 
     /**
@@ -153,49 +188,121 @@ public class GoogleSheetsService {
     }
 
     /**
-     * Retrieves all inventory items from a specific sheet.
+     * Retrieves all inventory items from a specific sheet, using cache if available.
      *
      * @param sheetName The name of the sheet to read from (e.g., "Branch1")
      * @return A list of InventoryItem objects
      * @throws IOException If an API error occurs
      */
     public List<InventoryItem> getAllInventoryItems(String sheetName) throws IOException {
-        List<InventoryItem> items = new ArrayList<>();
+        try {
+            if (cachedInventoryItems != null) {
+                return cachedInventoryItems; // Return cached items if available
+            }
 
-        // Get sheet metadata to verify sheet exists
-        Spreadsheet spreadsheet = sheetsService.spreadsheets().get(spreadsheetId).execute();
-        boolean sheetExists = spreadsheet.getSheets().stream()
-                .anyMatch(sheet -> sheetName.equals(sheet.getProperties().getTitle()));
+            List<InventoryItem> items = new ArrayList<>();
 
-        if (!sheetExists) {
-            throw new IOException(sheetName + " sheet not found");
+            // Get sheet metadata to verify sheet exists
+            Spreadsheet spreadsheet = sheetsService.spreadsheets().get(spreadsheetId).execute();
+            boolean sheetExists = spreadsheet.getSheets().stream()
+                    .anyMatch(sheet -> sheetName.equals(sheet.getProperties().getTitle()));
+
+            if (!sheetExists) {
+                throw new IOException(sheetName + " sheet not found");
+            }
+
+            String range;
+            // Fetch data from sheet
+            if (sheetName.equals("InventoryList")){
+                range = sheetName + "!F12:I";
+            }
+            else{
+                range = sheetName + "!B" + DEFAULT_START_ROW + ":F";
+            }
+
+            ValueRange response = sheetsService.spreadsheets().values()
+                    .get(spreadsheetId, range)
+                    .execute();
+
+            if (sheetName.equals("InventoryList")){
+                if (response.getValues() != null) {
+                    for (List<Object> row : response.getValues()) {
+                        if (row.size() >= 4) {
+                            try {
+                                int sku = Integer.parseInt(row.get(0).toString());
+                                String name = row.get(1).toString();
+                                String category = row.get(2).toString();
+                                double price = Double.parseDouble(row.get(3).toString());
+
+                                items.add(new InventoryItem(sku, name, category, price, 0));
+                            } catch (NumberFormatException e) {
+                                System.err.println("Invalid number format: " + e.getMessage());
+                            }
+                        }
+                    }
+                }
+            }
+            else{
+                if (response.getValues() != null) {
+                    for (List<Object> row : response.getValues()) {
+                        if (row.size() >= 5) {
+                            try {
+                                int sku = Integer.parseInt(row.get(0).toString());
+                                String name = row.get(1).toString();
+                                String category = row.get(2).toString();
+                                double price = Double.parseDouble(row.get(3).toString());
+                                int quantity = Integer.parseInt(row.get(4).toString());
+
+                                items.add(new InventoryItem(sku, name, category, price, quantity));
+                            } catch (NumberFormatException e) {
+                                System.err.println("Invalid number format: " + e.getMessage());
+                            }
+                        }
+                    }
+                }
+            }
+
+
+            cachedInventoryItems = items; // Cache the items for future use
+            return items;
+
+            } catch (IOException e) {
+            Logger.logError("Failed to get inventory items from sheet: " + sheetName, e);
+            return Collections.emptyList(); // Return an empty list on error
         }
 
-        // Fetch data from sheet
-        String range = sheetName + "!B" + DEFAULT_START_ROW + ":F";
+    }
+
+    public List<String> loadCategories() throws IOException {
+        // Define the range for the categories column (e.g., "InventoryList!H12:H" for column H)
+        String range = "InventoryList!H12:H"; // Adjust the range as needed
+
+        // Fetch the values from the specified column range
         ValueRange response = sheetsService.spreadsheets().values()
                 .get(spreadsheetId, range)
                 .execute();
+        List<List<Object>> values = response.getValues();
 
-        if (response.getValues() != null) {
-            for (List<Object> row : response.getValues()) {
-                if (row.size() >= 5) {
-                    try {
-                        int sku = Integer.parseInt(row.get(0).toString());
-                        String name = row.get(1).toString();
-                        String category = row.get(2).toString();
-                        double price = Double.parseDouble(row.get(3).toString());
-                        int quantity = Integer.parseInt(row.get(4).toString());
+        // Use a Set to store unique categories (case insensitive)
+        Set<String> uniqueCategories = new HashSet<>();
 
-                        items.add(new InventoryItem(sku, name, category, price, quantity));
-                    } catch (NumberFormatException e) {
-                        System.err.println("Invalid number format: " + e.getMessage());
+        if (values != null) {
+            for (List<Object> row : values) {
+                if (!row.isEmpty()) {
+                    String category = row.get(0).toString().trim(); // Assuming the category is in the first column
+                    if (!category.isEmpty()) {
+                        uniqueCategories.add(category.toLowerCase()); // Add to set in lowercase for case insensitivity
                     }
                 }
             }
         }
 
-        return items;
+        // Convert the Set back to a List and return
+        return new ArrayList<>(uniqueCategories);
+    }
+
+    public void clearCache() {
+        cachedInventoryItems = null;
     }
 
     /**

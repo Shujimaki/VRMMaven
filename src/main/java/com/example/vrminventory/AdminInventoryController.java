@@ -1,5 +1,6 @@
 package com.example.vrminventory;
 
+import com.google.api.services.sheets.v4.model.ValueRange;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -31,7 +32,7 @@ import java.util.concurrent.Executors;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
-public class LogEntryController {
+public class AdminInventoryController {
     // Constants
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MM/dd/yyyy");
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss");
@@ -39,11 +40,13 @@ public class LogEntryController {
 
 
     // Lists
-    private static final List<String> BRANCH_LIST = List.of("Branch1", "Branch2", "Branch3", "Warehouse");
-    private static final List<String> ACTIVITY_LIST = List.of("Sale", "Transfer-In", "Transfer-Out", "Return/Refund");
+    private static final List<String> BRANCH_LIST = List.of("Branch1", "Branch2", "Branch3", "Warehouse", "InventoryList");
     private static final List<String> SEARCH_FILTERS = List.of("SKU", "Name", "Category");
     private static final List<String> TYPE_FILTERS = List.of("SKU", "Alphabetical", "Price", "Quantity");
     private static final List<String> ASC_DESC_FILTERS = List.of("Ascending", "Descending");
+
+    private static List<String> UNIQUE_CATEGORIES_LIST;
+
 
     // Fields
     private GoogleSheetsService sheetsService;
@@ -53,12 +56,14 @@ public class LogEntryController {
 
     // FXML components
     @FXML public static Stage logEntryStage;
-    @FXML private ComboBox<String> branchComboBox;
+    @FXML private ComboBox<String> locationComboBox;
     @FXML private TextField SKUField;
+    @FXML private TextField nameField;
     @FXML private Label mainLabel;
     @FXML private Label statusLabel;
-    @FXML private ComboBox<String> activityComboBox;
-    @FXML private Spinner<Integer> quantitySpinner;
+    @FXML private Spinner<Integer> priceSpinner;
+    @FXML private ComboBox<String> categoryComboBox;
+
     @FXML private VBox entryVBox;
     @FXML private ListView<InventoryItem> itemListView;
     @FXML private VBox listViewContainer;
@@ -66,12 +71,11 @@ public class LogEntryController {
     @FXML private TextField searchField;
     @FXML private ComboBox<String> typeFilterComboBox;
     @FXML private ComboBox<String> ascOrDescComboBox;
-    @FXML private TextField descriptionField; // Added for description input
 
     private ObservableList<InventoryItem> observableItemList;
-    private String currentBranch = "Branch1"; // Default branch
+    private String currentBranch = "InventoryList"; // Default branch
 
-    public LogEntryController() {
+    public AdminInventoryController() {
         try {
             // Initialize Google Sheets service
             sheetsService = new GoogleSheetsService();
@@ -101,8 +105,7 @@ public class LogEntryController {
             // Check if we're coming from login
             String loginBranch = LoginController.getCurrentBranch();
             if (loginBranch != null && !loginBranch.isEmpty()) {
-                setAuthenticatedBranch(loginBranch);
-                mainLabel.setText(loginBranch.toUpperCase() + " Inventory List");
+                mainLabel.setText("Inventory List");
             }
 
         } catch (Exception e) {
@@ -121,7 +124,11 @@ public class LogEntryController {
         skuBST = new BST();
         addItemsToBST();
         observableItemList = FXCollections.observableArrayList(filteredItemList);
+
+        // Add existing categories for items
+        UNIQUE_CATEGORIES_LIST = sheetsService.loadCategories();
     }
+
 
     // New method to refresh data from Google Sheets
     public void refreshData() {
@@ -130,9 +137,10 @@ public class LogEntryController {
             sheetsService.clearCache();
 
             // Get current branch selection
-            String selectedBranch = branchComboBox.getValue();
+            String selectedBranch = locationComboBox.getValue();
             if (selectedBranch != null) {
                 currentBranch = selectedBranch;
+                System.out.println(currentBranch);
             }
 
             // Retrieve fresh data from Google Sheets
@@ -166,18 +174,20 @@ public class LogEntryController {
 
     private void setupUIComponents() {
         setupListView();
-        branchComboBox.getItems().addAll(BRANCH_LIST);
+        locationComboBox.getItems().addAll(BRANCH_LIST);
+
+        categoryComboBox.getItems().addAll(UNIQUE_CATEGORIES_LIST);
 
         // If not set from login, use default
         if (LoginController.getCurrentBranch() == null) {
-            branchComboBox.setValue(currentBranch); // Set default branch
+            locationComboBox.setValue(currentBranch); // Set default branch
         }
 
         // Set up activity combo box - will be populated in setAuthenticatedBranch
         searchFilterComboBox.getItems().addAll(SEARCH_FILTERS);
         typeFilterComboBox.getItems().addAll(TYPE_FILTERS);
         ascOrDescComboBox.getItems().addAll(ASC_DESC_FILTERS);
-        initializeQuantitySpinner();
+        initializePriceSpinner();
 
         searchField.setDisable(true);
         searchFilterComboBox.setValue(null);
@@ -203,7 +213,7 @@ public class LogEntryController {
         ascOrDescComboBox.valueProperty().addListener((obs, oldVal, newVal) -> applyFilters());
 
         // Add listener for branch change
-        branchComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
+        locationComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal != null && !newVal.equals(oldVal)) {
                 currentBranch = newVal;
                 refreshData();
@@ -211,44 +221,24 @@ public class LogEntryController {
         });
     }
 
-    // Method to set the authenticated branch and configure UI accordingly
-    public void setAuthenticatedBranch(String branch) {
-        if (branch != null && !branch.isEmpty()) {
-            currentBranch = branch;
 
-            // Set branch in combo box and disable editing
-            branchComboBox.setValue(branch);
-            branchComboBox.setDisable(true);
-
-            // Update activity list based on branch
-            activityComboBox.getItems().clear();
-            if ("Warehouse".equals(branch)) {
-                activityComboBox.getItems().addAll("Supply", "Transfer-Out");
-            } else {
-                activityComboBox.getItems().addAll(ACTIVITY_LIST);
-            }
-
-            // Refresh data for the selected branch
-            refreshData();
-        }
-    }
 
     @FXML
-    private void initializeQuantitySpinner() {
+    private void initializePriceSpinner() {
         SpinnerValueFactory.IntegerSpinnerValueFactory valueFactory =
-                new SpinnerValueFactory.IntegerSpinnerValueFactory(1, Integer.MAX_VALUE, 1);
-        quantitySpinner.setValueFactory(valueFactory);
+                new SpinnerValueFactory.IntegerSpinnerValueFactory(0, Integer.MAX_VALUE, 1);
+        priceSpinner.setValueFactory(valueFactory);
 
         UnaryOperator<TextFormatter.Change> filter = change ->
                 change.getControlNewText().matches("\\d*") ? change : null;
 
-        quantitySpinner.getEditor().setTextFormatter(new TextFormatter<>(filter));
+        priceSpinner.getEditor().setTextFormatter(new TextFormatter<>(filter));
 
         // Set the font size and family for the spinner's editor TextField
-        quantitySpinner.getEditor().setStyle("-fx-font-size: 20px; -fx-font-family: 'Arial';");
+        priceSpinner.getEditor().setStyle("-fx-font-size: 20px; -fx-font-family: 'Arial';");
 
         // Optional: Adjust the spinner's overall style for better appearance with the new font
-        quantitySpinner.setStyle("-fx-font-size: 20px;");
+        priceSpinner.setStyle("-fx-font-size: 20px;");
     }
 
     @FXML
@@ -301,7 +291,7 @@ public class LogEntryController {
 
     private void addHeaderLabel(GridPane grid, String text, int column) {
         Label label = new Label(text);
-        label.setTextFill(Color.WHITE);
+        label.setTextFill(Color.BLACK);
         label.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
         grid.add(label, column, 0);
     }
@@ -370,7 +360,12 @@ public class LogEntryController {
                     nameLabel.setText(item.getName());
                     categoryLabel.setText(item.getCategory());
                     priceLabel.setText(String.format("₱%.2f", item.getPrice()));
-                    quantityLabel.setText(String.valueOf(item.getQuantity()));
+                    if(currentBranch.equals("InventorList")){
+                        quantityLabel.setText("");
+                    }
+                    else{
+                        quantityLabel.setText(String.valueOf(item.getQuantity()));
+                    }
 
                     // Set the cell height to grow as needed based on content
                     setPrefHeight(USE_COMPUTED_SIZE);
@@ -440,15 +435,14 @@ public class LogEntryController {
         // Logic for handling log entry, including API calls
         try {
             int sku = Integer.parseInt(SKUField.getText());
-            String branch = branchComboBox.getValue();
-            String activity = activityComboBox.getValue();
-            int quantity = quantitySpinner.getValue();
-            String description = descriptionField != null ? descriptionField.getText() : "";
+            String name = nameField.getText();
+            String category = categoryComboBox.getValue();
+            int price = priceSpinner.getValue();
 
             // Find item details for the SKU
             InventoryItem item = findItemBySku(sku);
-            if (item == null) {
-                statusLabel.setText("SKU not found in inventory.");
+            if (item != null) {
+                statusLabel.setText("SKU already exists");
                 return;
             }
 
@@ -463,15 +457,11 @@ public class LogEntryController {
             grid.setVgap(10);
             grid.setPadding(new Insets(20, 150, 10, 10));
 
-            // Add entry details
-            addDetailRow(grid, "Branch:", branch, 0);
+            // Add inventory entry details
             addDetailRow(grid, "SKU:", String.valueOf(sku), 1);
-            addDetailRow(grid, "Name:", item.getName(), 2);
-            addDetailRow(grid, "Category:", item.getCategory(), 3);
-            addDetailRow(grid, "Price:", String.format("₱%.2f", item.getPrice()), 4);
-            addDetailRow(grid, "Activity:", activity, 5);
-            addDetailRow(grid, "Quantity:", String.valueOf(quantity), 6);
-            addDetailRow(grid, "Description:", description, 7);
+            addDetailRow(grid, "Name:", name, 2);
+            addDetailRow(grid, "Category:", category, 3);
+            addDetailRow(grid, "Price:", String.format("₱%.2f", price), 4);
 
             // Add the grid to dialog pane
             confirmationAlert.getDialogPane().setContent(grid);
@@ -481,12 +471,12 @@ public class LogEntryController {
 
             if (result.isPresent() && result.get() == ButtonType.OK) {
                 // Proceed with log entry
-                confirmLogEntry(branch, sku, activity, quantity, description);
+                confirmInventoryEntry(sku, name, category, price);
             }
 
         } catch (Exception e) {
-            Logger.logError("Failed to handle log entry", e);
-            showErrorAlert("Log Entry Error", "An error occurred while processing the log entry.");
+            Logger.logError("Failed to handle inventory entry", e);
+            showErrorAlert("Log Entry Error", "An error occurred while processing the inventory entry.");
         }
     }
 
@@ -507,7 +497,7 @@ public class LogEntryController {
         return null; // SKU not found
     }
 
-    private void confirmLogEntry(String branch, int sku, String activity, int quantity, String description) {
+    private void confirmInventoryEntry(int sku, String name, String category, int price) {
         // Create processing alert
         Alert processingAlert = new Alert(Alert.AlertType.INFORMATION);
         processingAlert.setTitle("Processing");
@@ -520,38 +510,15 @@ public class LogEntryController {
             @Override
             protected Integer call() throws Exception {
                 // Prepare data
-                List<Object> dataToWrite;
+                List<Object> dataToWrite = Arrays.asList(
+                            sku,
+                            name,
+                            category,
+                            price);
 
-                if (branch.equals("Warehouse")) {
-                    int activityCode = "Supply".equals(activity) ? 1 : 2; // 1 for Supply, 2 for Transfer-Out
-                    dataToWrite = Arrays.asList(
-                            LocalDate.now().format(DATE_FORMATTER),
-                            LocalTime.now().format(TIME_FORMATTER),
-                            activityCode,
-                            sku,
-                            quantity,
-                            description
-                    );
-                } else {
-                    int activityCode = switch (activity) {
-                        case "Sale" -> 1;
-                        case "Transfer-In" -> 2;
-                        case "Transfer-Out" -> 3;
-                        case "Return/Refund" -> 4;
-                        default -> throw new IllegalArgumentException("Invalid activity");
-                    };
-                    dataToWrite = Arrays.asList(
-                            LocalDate.now().format(DATE_FORMATTER),
-                            LocalTime.now().format(TIME_FORMATTER),
-                            activityCode,
-                            sku,
-                            quantity,
-                            description
-                    );
-                }
 
                 // Find next row and write data
-                String branchPrefix = branch + "!";
+                String branchPrefix = "InventoryList!";
                 String range = sheetsService.findNextRow(branchPrefix);
                 return sheetsService.writeData(range, dataToWrite);
             }
@@ -561,9 +528,9 @@ public class LogEntryController {
             processingAlert.close();
             int cellsUpdated = task.getValue();
             Alert resultAlert = new Alert(Alert.AlertType.INFORMATION);
-            resultAlert.setTitle("Log Entry Result");
+            resultAlert.setTitle("Inventory Entry Result");
             resultAlert.setHeaderText(null);
-            resultAlert.setContentText(cellsUpdated > 0 ? "Log entry added successfully." : "Failed to update log.");
+            resultAlert.setContentText(cellsUpdated > 0 ? "Inventory entry added successfully." : "Failed to update inventory.");
             resultAlert.show();
             refreshData(); // Refresh data after adding log
             clearFields();
@@ -572,9 +539,9 @@ public class LogEntryController {
         task.setOnFailed(event -> {
             processingAlert.close();
             Alert failAlert = new Alert(Alert.AlertType.ERROR);
-            failAlert.setTitle("Log Entry Failed");
+            failAlert.setTitle("Inventory Entry Failed");
             failAlert.setHeaderText(null);
-            failAlert.setContentText("Failed to update log: " + task.getException().getMessage());
+            failAlert.setContentText("Failed to update inventory: " + task.getException().getMessage());
             failAlert.show();
         });
 
@@ -597,10 +564,10 @@ public class LogEntryController {
         // Load in BG
         EXECUTOR.submit(()-> {
             try {
-                FXMLLoader loader = new FXMLLoader(getClass().getResource("main-view.fxml"));
+                FXMLLoader loader = new FXMLLoader(getClass().getResource("admin-main-view.fxml"));
                 Parent root = loader.load();
 
-                MainViewController mainViewController = loader.getController();
+                AdminMainViewController mainViewController = loader.getController();
                 mainViewController.setBranch(currentBranch);
 
                 //Update UI
@@ -674,7 +641,7 @@ public class LogEntryController {
         // Create the loading alert content
         VBox loadingBox = new VBox(10);
         loadingBox.setAlignment(javafx.geometry.Pos.CENTER);
-        loadingBox.setPadding(new javafx.geometry.Insets(20));
+        loadingBox.setPadding(new Insets(20));
         loadingBox.setStyle("-fx-background-color: white; -fx-border-color: #cccccc; -fx-border-width: 1px;");
 
         Label loadingLabel = new Label(message);
@@ -693,11 +660,9 @@ public class LogEntryController {
 
     private void clearFields() {
         SKUField.clear();
-        quantitySpinner.getValueFactory().setValue(1);
-        if (descriptionField != null) {
-            descriptionField.clear();
-        }
-        statusLabel.setText("Log entry complete");
+        priceSpinner.getValueFactory().setValue(1);
+        nameField.clear();
+        statusLabel.setText("New Inventory added!");
     }
 
     private boolean validateInput() {
@@ -707,21 +672,26 @@ public class LogEntryController {
             return false;
         }
 
+        if (nameField.getText().isEmpty()) {
+            statusLabel.setText("Name is empty");
+            return false;
+        }
+
         int sku;
         try {
             sku = Integer.parseInt(SKUField.getText());
-            if (!isValidSKU(sku)) {
-                statusLabel.setText("Invalid SKU");
+            if (isValidSKU(sku)) {
+                statusLabel.setText("SKU already exists!");
                 return false;
             }
         } catch (NumberFormatException e) {
-            statusLabel.setText("Invalid SKU");
+            statusLabel.setText("SKU already exists!");
             return false;
         }
 
         // Validate branch and activity
-        if (branchComboBox.getValue() == null || activityComboBox.getValue() == null) {
-            statusLabel.setText("Please select branch and activity");
+        if (categoryComboBox.getValue() == null || categoryComboBox.getValue() == null) {
+            statusLabel.setText("Please select a category");
             return false;
         }
 

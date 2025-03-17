@@ -33,7 +33,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
-public class MainViewController {
+public class AdminMainViewController {
     // Constants
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("M/dd/yyyy");
     private static final DateTimeFormatter TIME_FORMATTER_HMS = DateTimeFormatter.ofPattern("H:mm:ss");
@@ -41,10 +41,9 @@ public class MainViewController {
     private static final DateTimeFormatter TIME_FORMATTER_FULL = DateTimeFormatter.ofPattern("HH:mm:ss");
     private static final ExecutorService EXECUTOR = Executors.newFixedThreadPool(2);
 
-
     // Lists
-    private static final List<String> SEARCH_FILTERS = List.of("SKU", "Description");
-    private static final List<String> TYPE_FILTERS = List.of("Date and Time", "SKU", "Quantity");
+    private static final List<String> SEARCH_FILTERS = List.of("Branch", "SKU", "Description");
+    private static final List<String> TYPE_FILTERS = List.of("Date and Time", "Branch", "SKU", "Quantity");
     private static final List<String> ASC_DESC_FILTERS = List.of("Ascending", "Descending");
 
     // Fields
@@ -53,12 +52,11 @@ public class MainViewController {
     private List<LogEntry> filteredLogEntries;
 
     // FXML components
+
     @FXML
     private Label branchLabel;
     @FXML
     private Label mainLabel;
-    @FXML
-    private Label statusLabel;
     @FXML
     private VBox listViewContainer;
     @FXML
@@ -75,7 +73,7 @@ public class MainViewController {
     private ObservableList<LogEntry> observableLogList;
     private String currentBranch;
 
-    public MainViewController() {
+    public AdminMainViewController() {
         try {
             // Initialize Google Sheets service
             sheetsService = new GoogleSheetsService();
@@ -88,14 +86,9 @@ public class MainViewController {
     @FXML
     private void initialize() {
         try {
-            // Get branch from login controller
-            String loginBranch = LoginController.getCurrentBranch();
-            if (loginBranch != null && !loginBranch.isEmpty()) {
-                currentBranch = loginBranch;
-                branchLabel.setText(currentBranch);
-                mainLabel.setText(currentBranch.toUpperCase() + " Log Sheet");
-            } else {
-                currentBranch = "Branch1"; // Default branch
+            // Set title for admin view
+            if (mainLabel != null) {
+                mainLabel.setText("GENERAL LOG SHEET - Administrator View");
             }
 
             // Initialize data
@@ -113,9 +106,6 @@ public class MainViewController {
             applyFilters();
 
         } catch (Exception e) {
-            if (statusLabel != null) {
-                statusLabel.setText("Initialization error: " + e.getMessage());
-            }
             e.printStackTrace();
         }
     }
@@ -125,17 +115,17 @@ public class MainViewController {
             throw new IOException("Google Sheets service is not initialized");
         }
 
-        logEntries = getLogEntries(currentBranch);
+        logEntries = getLogEntries();
         filteredLogEntries = new ArrayList<>(logEntries);
         observableLogList = FXCollections.observableArrayList(filteredLogEntries);
     }
 
-    // Method to get log entries from Google Sheets
-    private List<LogEntry> getLogEntries(String branch) throws IOException {
+    // Method to get log entries from GeneralLogSheet in Google Sheets
+    private List<LogEntry> getLogEntries() throws IOException {
         List<LogEntry> entries = new ArrayList<>();
 
-        // Extend range to ensure all logs are captured
-        String range = branch + "!I21:N5000";  // Increased range
+        // Get data from General Log Sheet
+        String range = "GeneralLogSheet!E18:K10000";  // Range for consolidated logs
         var response = sheetsService.getSheetsService().spreadsheets().values()
                 .get(sheetsService.getSpreadsheetId(), range)
                 .execute();
@@ -143,18 +133,20 @@ public class MainViewController {
         if (response.getValues() != null) {
             for (List<Object> row : response.getValues()) {
                 // Skip empty rows or rows with insufficient data
-                if (row.isEmpty() || row.size() < 5) continue;
+                if (row.isEmpty() || row.size() < 6) continue;
 
                 try {
-                    String date = row.get(0).toString().trim();
-                    String time = row.get(1).toString().trim();
-                    String activity = convertActivityCodeToString(row.get(2).toString().trim(), branch);
-                    int sku = Integer.parseInt(row.get(3).toString().trim());
-                    int quantity = Integer.parseInt(row.get(4).toString().trim());
-                    String description = row.size() > 5 ? row.get(5).toString().trim() : "";
+                    String branch = row.get(0).toString().trim();
+                    String date = row.get(1).toString().trim();
+                    String time = row.get(2).toString().trim();
+                    String activity = convertActivityCodeToString(row.get(3).toString().trim(), branch);
+                    int sku = Integer.parseInt(row.get(4).toString().trim());
+                    int quantity = Integer.parseInt(row.get(5).toString().trim());
+                    String description = row.size() > 6 ? row.get(6).toString().trim() : "";
 
-                    // Create LogEntry and add to list
+                    // Create AdminLogEntry and add to list
                     LogEntry logEntry = new LogEntry(branch, date, time, activity, sku, quantity, description);
+                    logEntry.setBranch(branch); // Set branch in the log entry
                     enrichLogEntryWithItemDetails(logEntry, branch);
                     entries.add(logEntry);
                 } catch (Exception e) {
@@ -211,7 +203,7 @@ public class MainViewController {
     public void refreshData() {
         try {
             // Retrieve fresh data from Google Sheets
-            logEntries = getLogEntries(currentBranch);
+            logEntries = getLogEntries();
 
             // Update filtered list
             String searchFilter = searchFilterComboBox.getValue();
@@ -227,14 +219,8 @@ public class MainViewController {
                 applyFilters();
             }
 
-            // Update status
-            if (statusLabel != null) {
-                statusLabel.setText("Data refreshed successfully");
-            }
         } catch (IOException e) {
-            if (statusLabel != null) {
-                statusLabel.setText("Error refreshing data: " + e.getMessage());
-            }
+
             e.printStackTrace();
         }
     }
@@ -286,15 +272,16 @@ public class MainViewController {
         GridPane headers = createHeaderGridPane();
         listViewContainer.getChildren().add(0, headers);
 
-        // Calculate column widths
+        // Calculate column widths - add branch column
         double totalWidth = logListView.getPrefWidth();
         double[] columnWidths = {
-                totalWidth * 0.22,  // Date column
-                totalWidth * 0.24,  // Time column
-                totalWidth * 0.23,  // Activity column
-                totalWidth * 0.25,  // SKU column
-                totalWidth * 0.23,  // Quantity column
-                totalWidth * 0.20   // Description column
+                totalWidth * 0.18,  // Branch column
+                totalWidth * 0.19,  // Date column
+                totalWidth * 0.20,  // Time column
+                totalWidth * 0.20,  // Activity column
+                totalWidth * 0.22,  // SKU column
+                totalWidth * 0.16,  // Quantity column
+                totalWidth * 0.26   // Description column
         };
 
         // Configure ListView with custom cell factory
@@ -312,18 +299,19 @@ public class MainViewController {
         headers.setHgap(10);
         headers.setPrefWidth(logListView.getPrefWidth());
 
-        // Add header labels
-        addHeaderLabel(headers, "Date", 0);
-        addHeaderLabel(headers, "Time", 1);
-        addHeaderLabel(headers, "Activity", 2);
-        addHeaderLabel(headers, "SKU", 3);
-        addHeaderLabel(headers, "Quantity", 4);
-        addHeaderLabel(headers, "Description", 5);
+        // Add header labels with Branch added
+        addHeaderLabel(headers, "Branch", 0);
+        addHeaderLabel(headers, "Date", 1);
+        addHeaderLabel(headers, "Time", 2);
+        addHeaderLabel(headers, "Activity", 3);
+        addHeaderLabel(headers, "SKU", 4);
+        addHeaderLabel(headers, "Quantity", 5);
+        addHeaderLabel(headers, "Description", 6);
 
         // Set column constraints
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < 7; i++) {
             ColumnConstraints column = new ColumnConstraints();
-            column.setPercentWidth(i == 5 ? 25 : 15); // Make Description column wider
+            column.setPercentWidth(i == 6 ? 25 : 12.5); // Make Description column wider
             headers.getColumnConstraints().add(column);
         }
 
@@ -332,7 +320,7 @@ public class MainViewController {
 
     private void addHeaderLabel(GridPane grid, String text, int column) {
         Label label = new Label(text);
-        label.setTextFill(Color.WHITE);
+        label.setTextFill(Color.BLACK);
         label.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
         grid.add(label, column, 0);
     }
@@ -340,6 +328,7 @@ public class MainViewController {
     private Callback<ListView<LogEntry>, ListCell<LogEntry>> createLogCellFactory(double[] columnWidths) {
         return param -> new ListCell<>() {
             private final GridPane gridPane = new GridPane();
+            private final Label branchLabel = new Label(); // New branch label
             private final Label dateLabel = new Label();
             private final Label timeLabel = new Label();
             private final Label activityLabel = new Label();
@@ -352,7 +341,7 @@ public class MainViewController {
                 gridPane.setHgap(10);
 
                 // Set column constraints
-                for (int i = 0; i < 6; i++) {
+                for (int i = 0; i < 7; i++) {
                     ColumnConstraints column = new ColumnConstraints();
                     column.setPrefWidth(columnWidths[i]);
                     column.setMinWidth(columnWidths[i]);
@@ -360,16 +349,18 @@ public class MainViewController {
                     gridPane.getColumnConstraints().add(column);
                 }
 
-                // Add labels to GridPane
-                gridPane.add(dateLabel, 0, 0);
-                gridPane.add(timeLabel, 1, 0);
-                gridPane.add(activityLabel, 2, 0);
-                gridPane.add(skuLabel, 3, 0);
-                gridPane.add(quantityLabel, 4, 0);
-                gridPane.add(descriptionLabel, 5, 0);
+                // Add labels to GridPane (branch added)
+                gridPane.add(branchLabel, 0, 0);
+                gridPane.add(dateLabel, 1, 0);
+                gridPane.add(timeLabel, 2, 0);
+                gridPane.add(activityLabel, 3, 0);
+                gridPane.add(skuLabel, 4, 0);
+                gridPane.add(quantityLabel, 5, 0);
+                gridPane.add(descriptionLabel, 6, 0);
 
                 // Set font size for all labels
                 String fontStyle = "-fx-font-size: 14px;";
+                branchLabel.setStyle(fontStyle);
                 dateLabel.setStyle(fontStyle);
                 timeLabel.setStyle(fontStyle);
                 activityLabel.setStyle(fontStyle);
@@ -379,7 +370,7 @@ public class MainViewController {
 
                 // Configure text wrapping for description
                 descriptionLabel.setWrapText(true);
-                descriptionLabel.setMaxWidth(columnWidths[5] - 10);
+                descriptionLabel.setMaxWidth(columnWidths[6] - 10);
                 descriptionLabel.setMinHeight(Label.USE_COMPUTED_SIZE);
                 descriptionLabel.setPrefHeight(Label.USE_COMPUTED_SIZE);
             }
@@ -392,7 +383,8 @@ public class MainViewController {
                     setText(null);
                     setGraphic(null);
                 } else {
-                    // Update labels with entry data
+                    // Update labels with entry data (branch added)
+                    branchLabel.setText(entry.getBranch());
                     dateLabel.setText(entry.getDate());
                     timeLabel.setText(entry.getTime());
                     activityLabel.setText(entry.getActivity());
@@ -473,7 +465,6 @@ public class MainViewController {
             detailStage.showAndWait();
 
         } catch (Exception e) {
-            statusLabel.setText("Error showing details: " + e.getMessage());
             e.printStackTrace();
         }
     }
@@ -649,12 +640,11 @@ public class MainViewController {
         EXECUTOR.submit(() -> {
             try {
                 // Load the log entry view in background
-                FXMLLoader loader = new FXMLLoader(getClass().getResource("log-entry.fxml"));
+                FXMLLoader loader = new FXMLLoader(getClass().getResource("admin-inventory.fxml"));
                 Parent root = loader.load();
 
                 // Get controller and set the branch
-                LogEntryController controller = loader.getController();
-                controller.setAuthenticatedBranch(currentBranch);
+                AdminInventoryController controller = loader.getController();
 
                 // Update UI on JavaFX thread
                 Platform.runLater(() -> {
@@ -667,16 +657,16 @@ public class MainViewController {
                         currentStage.getScene().getRoot().setDisable(false);
 
                         // Create and show the stage
-                        Stage logEntryStage = new Stage();
-                        logEntryStage.setTitle("Add Log Entry - " + currentBranch);
-                        logEntryStage.setScene(new Scene(root, 1366, 768));
-                        logEntryStage.setResizable(false);
+                        Stage inventoryStage = new Stage();
+                        inventoryStage.setTitle("Add Log Entry - " + "GeneralLogSheet");
+                        inventoryStage.setScene(new Scene(root, 1366, 768));
+                        inventoryStage.setResizable(false);
 
                         // Close current window
                         currentStage.close();
 
                         // Show new window
-                        logEntryStage.show();
+                        inventoryStage.show();
                     } catch (Exception e) {
                         // Close loading alert in case of error
                         loadingStage.close();
@@ -686,7 +676,7 @@ public class MainViewController {
                         currentStage.getScene().getRoot().setDisable(false);
 
                         // Show error alert
-                        showErrorAlert("Failed to load log entry screen", e.getMessage());
+                        showErrorAlert("Failed to load inventory screen", e.getMessage());
                         e.printStackTrace();
                     }
                 });
@@ -740,25 +730,22 @@ public class MainViewController {
     public void setBranch(String branch) {
         this.currentBranch = branch;
         if (branchLabel != null) {
-            branchLabel.setText(branch);
+            branchLabel.setText("Admin");
         }
         if (mainLabel != null) {
-            mainLabel.setText(branch.toUpperCase() + " Log Sheet");
+            mainLabel.setText("ADMIN - General Log Sheet");
         }
 
         // Refresh data with the new branch
         try {
             if (sheetsService != null) {
-                logEntries = getLogEntries(currentBranch);
+                logEntries = getLogEntries();
                 filteredLogEntries = new ArrayList<>(logEntries);
                 if (observableLogList != null) {
                     observableLogList.setAll(filteredLogEntries);
                 }
             }
         } catch (IOException e) {
-            if (statusLabel != null) {
-                statusLabel.setText("Error loading data for branch: " + e.getMessage());
-            }
             e.printStackTrace();
         }
     }
