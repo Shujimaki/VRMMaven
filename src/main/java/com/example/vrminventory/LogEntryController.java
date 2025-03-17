@@ -397,7 +397,7 @@ public class LogEntryController {
                 primaryComparator = Comparator.comparingInt(InventoryItem::getSku);
                 break;
             case "Alphabetical":
-                primaryComparator = Comparator.comparing(InventoryItem::getName);
+                primaryComparator = Comparator.comparing(item -> item.getName().trim().toLowerCase());
                 break;
             case "Price":
                 primaryComparator = Comparator.comparingDouble(InventoryItem::getPrice);

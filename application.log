@@ -19,3 +19,4 @@
 2025-03-17T19:45:20.010747600: ERROR: Failed to get inventory items from sheet: ADMIN - ADMIN sheet not found
 2025-03-17T19:48:29.656430500: ERROR: Failed to get inventory items from sheet: ADMIN - ADMIN sheet not found
 2025-03-17T19:48:38.641649700: ERROR: Failed to get inventory items from sheet: ADMIN - ADMIN sheet not found
+2025-03-17T20:27:36.116423: ERROR: Failed to handle log entry - Cannot invoke "java.lang.Integer.intValue()" because the return value of "javafx.scene.control.Spinner.getValue()" is null
