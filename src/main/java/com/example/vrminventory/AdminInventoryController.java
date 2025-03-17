@@ -37,7 +37,7 @@ public class AdminInventoryController {
 
 
     // Lists
-    private static final List<String> BRANCH_LIST = List.of("Branch1", "Branch2", "Branch3", "Warehouse", "InventoryList");
+    private static final List<String> BRANCH_LIST = List.of("ADMIN", "Branch1", "Branch2", "Branch3", "Warehouse");
     private static final List<String> SEARCH_FILTERS = List.of("SKU", "Name", "Category");
     private static final List<String> TYPE_FILTERS = List.of("SKU", "Alphabetical", "Price", "Quantity");
     private static final List<String> ASC_DESC_FILTERS = List.of("Ascending", "Descending");
@@ -70,7 +70,7 @@ public class AdminInventoryController {
     @FXML private ComboBox<String> ascOrDescComboBox;
 
     private ObservableList<InventoryItem> observableItemList;
-    private String currentBranch = "InventoryList"; // Default branch
+    private String currentBranch = "ADMIN"; // Default branch
 
     public AdminInventoryController() {
         try {
@@ -85,6 +85,7 @@ public class AdminInventoryController {
     @FXML
     private void initialize() {
         try {
+            currentBranch = "ADMIN";
             // Initialize data
             initializeData();
 
@@ -116,7 +117,14 @@ public class AdminInventoryController {
             throw new IOException("Google Sheets service is not initialized");
         }
 
-        itemList = sheetsService.getAllInventoryItems(currentBranch);
+        if (currentBranch.equals("ADMIN")){
+            System.out.println("yay1");
+            itemList = sheetsService.getAllInventoryItems("InventoryList");
+        }
+        else{
+            System.out.println("yay2");
+            itemList = sheetsService.getAllInventoryItems(currentBranch);
+        }
         filteredItemList = new ArrayList<>(itemList);
         skuBST = new BST();
         addItemsToBST();
@@ -140,8 +148,14 @@ public class AdminInventoryController {
                 System.out.println(currentBranch);
             }
 
-            // Retrieve fresh data from Google Sheets
-            itemList = sheetsService.getAllInventoryItems(currentBranch);
+            if (currentBranch.equals("ADMIN")){
+                System.out.println("yay1");
+                itemList = sheetsService.getAllInventoryItems("InventoryList");
+            }
+            else{
+                System.out.println("yay2");
+                itemList = sheetsService.getAllInventoryItems(currentBranch);
+            }
 
             // Clear and rebuild the BST
             skuBST = new BST();
@@ -172,6 +186,8 @@ public class AdminInventoryController {
     private void setupUIComponents() {
         setupListView();
         locationComboBox.getItems().addAll(BRANCH_LIST);
+
+        locationComboBox.setValue(currentBranch);
 
         categoryComboBox.getItems().addAll(UNIQUE_CATEGORIES_LIST);
 
@@ -366,7 +382,7 @@ public class AdminInventoryController {
                     nameLabel.setText(item.getName());
                     categoryLabel.setText(item.getCategory());
                     priceLabel.setText(String.format("₱%.2f", item.getPrice()));
-                    if(currentBranch.equals("InventorList")){
+                    if(currentBranch.equals("ADMIN")){
                         quantityLabel.setText("");
                     }
                     else{
@@ -398,7 +414,7 @@ public class AdminInventoryController {
                 primaryComparator = Comparator.comparingInt(InventoryItem::getSku);
                 break;
             case "Alphabetical":
-                primaryComparator = Comparator.comparing(InventoryItem::getName);
+                primaryComparator = Comparator.comparing(item -> item.getName().trim().toLowerCase());
                 break;
             case "Price":
                 primaryComparator = Comparator.comparingDouble(InventoryItem::getPrice);
@@ -530,10 +546,10 @@ public class AdminInventoryController {
             protected Integer call() throws Exception {
                 // Prepare data
                 List<Object> dataToWrite = Arrays.asList(
-                            sku,
-                            name,
-                            category,
-                            price);
+                        sku,
+                        name,
+                        category,
+                        price);
 
 
                 // Find next row and write data

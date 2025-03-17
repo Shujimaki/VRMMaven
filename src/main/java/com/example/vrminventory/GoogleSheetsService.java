@@ -214,7 +214,7 @@ public class GoogleSheetsService {
             String range;
             // Fetch data from sheet
             if (sheetName.equals("InventoryList")){
-                range = sheetName + "!F12:I";
+                range = "InventoryList!F12:I";
             }
             else{
                 range = sheetName + "!B" + DEFAULT_START_ROW + ":F";

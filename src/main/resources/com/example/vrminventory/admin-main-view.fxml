@@ -105,6 +105,17 @@
                            </HBox.margin>
                         </ComboBox>
                         <ComboBox fx:id="ascOrDescComboBox" prefHeight="65.0" prefWidth="150.0" promptText="↑ or ↓" style="-fx-font-size: 14; -fx-font-family: Arial;" />
+                        <Label prefHeight="26.0" prefWidth="161.0" textFill="#2b576d">
+                           <font>
+                              <Font name="Arial Bold" size="20.0" />
+                           </font>
+                        </Label>
+                        <Label prefHeight="26.0" prefWidth="96.0" text="Location:" textFill="#2b576d">
+                           <font>
+                              <Font name="Arial Bold" size="20.0" />
+                           </font>
+                        </Label>
+                        <ComboBox fx:id="locationComboBox" prefHeight="65.0" prefWidth="135.0" promptText="🝖" style="-fx-font-size: 14; -fx-font-family: Arial;" />
                      </children>
                   </HBox>
                   <VBox fx:id="listViewContainer" prefHeight="500.0" prefWidth="540.0" spacing="10.0">

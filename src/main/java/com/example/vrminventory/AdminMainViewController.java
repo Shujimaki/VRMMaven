@@ -25,10 +25,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
@@ -42,8 +39,9 @@ public class AdminMainViewController {
     private static final ExecutorService EXECUTOR = Executors.newFixedThreadPool(2);
 
     // Lists
-    private static final List<String> SEARCH_FILTERS = List.of("Branch", "SKU", "Description");
-    private static final List<String> TYPE_FILTERS = List.of("Date and Time", "Branch", "SKU", "Quantity");
+    private static final List<String> BRANCH_LIST = List.of("ADMIN", "Branch1", "Branch2", "Branch3", "Warehouse");
+    private static final List<String> SEARCH_FILTERS = List.of("SKU", "Description");
+    private static final List<String> TYPE_FILTERS = List.of("Date and Time", "SKU", "Quantity");
     private static final List<String> ASC_DESC_FILTERS = List.of("Ascending", "Descending");
 
     // Fields
@@ -69,6 +67,9 @@ public class AdminMainViewController {
     private ComboBox<String> typeFilterComboBox;
     @FXML
     private ComboBox<String> ascOrDescComboBox;
+    @FXML
+    private ComboBox<String> locationComboBox;
+
 
     private ObservableList<LogEntry> observableLogList;
     private String currentBranch;
@@ -86,9 +87,11 @@ public class AdminMainViewController {
     @FXML
     private void initialize() {
         try {
+            currentBranch = "ADMIN";
+
             // Set title for admin view
             if (mainLabel != null) {
-                mainLabel.setText("GENERAL LOG SHEET - Administrator View");
+                mainLabel.setText("ADMIN - General Log Sheet");
             }
 
             // Initialize data
@@ -125,25 +128,55 @@ public class AdminMainViewController {
         List<LogEntry> entries = new ArrayList<>();
 
         // Get data from General Log Sheet
-        String range = "GeneralLogSheet!E18:K10000";  // Range for consolidated logs
+        String range;
+        if (Objects.equals(currentBranch, "ADMIN")) {
+            range = "GeneralLogSheet!E18:K10000";  // Range for consolidated logs of InventoryList
+        }
+        else{
+            range = currentBranch + "!I21:N5000";
+            System.out.println(range);
+        }
         var response = sheetsService.getSheetsService().spreadsheets().values()
                 .get(sheetsService.getSpreadsheetId(), range)
                 .execute();
 
         if (response.getValues() != null) {
             for (List<Object> row : response.getValues()) {
+
+                String branch;
+                String date;
+                String time;
+                String activity;
+                int sku;
+                int quantity;
+                String description;
+
                 // Skip empty rows or rows with insufficient data
-                if (row.isEmpty() || row.size() < 6) continue;
+                if (Objects.equals(currentBranch, "ADMIN")) {
+                    if (row.isEmpty() || row.size() < 6) continue;
+
+                    branch = row.get(0).toString().trim();
+                    date = row.get(1).toString().trim();
+                    time = row.get(2).toString().trim();
+                    activity = convertActivityCodeToString(row.get(3).toString().trim(), branch);
+                    sku = Integer.parseInt(row.get(4).toString().trim());
+                    quantity = Integer.parseInt(row.get(5).toString().trim());
+                    description = row.size() > 6 ? row.get(6).toString().trim() : "";
+                }
+
+                else{
+                    if (row.isEmpty() || row.size() < 5) continue;
+
+                    branch = currentBranch;
+                    date = row.get(0).toString().trim();
+                    time = row.get(1).toString().trim();
+                    activity = convertActivityCodeToString(row.get(2).toString().trim(), currentBranch);
+                    sku = Integer.parseInt(row.get(3).toString().trim());
+                    quantity = Integer.parseInt(row.get(4).toString().trim());
+                    description = row.size() > 5 ? row.get(5).toString().trim() : "";
+                }
 
                 try {
-                    String branch = row.get(0).toString().trim();
-                    String date = row.get(1).toString().trim();
-                    String time = row.get(2).toString().trim();
-                    String activity = convertActivityCodeToString(row.get(3).toString().trim(), branch);
-                    int sku = Integer.parseInt(row.get(4).toString().trim());
-                    int quantity = Integer.parseInt(row.get(5).toString().trim());
-                    String description = row.size() > 6 ? row.get(6).toString().trim() : "";
-
                     // Create AdminLogEntry and add to list
                     LogEntry logEntry = new LogEntry(branch, date, time, activity, sku, quantity, description);
                     logEntry.setBranch(branch); // Set branch in the log entry
@@ -226,6 +259,10 @@ public class AdminMainViewController {
     }
 
     private void setupUIComponents() {
+        locationComboBox.getItems().addAll(BRANCH_LIST);
+
+        locationComboBox.setValue(currentBranch); // Set default branch
+
         searchFilterComboBox.getItems().addAll(SEARCH_FILTERS);
         typeFilterComboBox.getItems().addAll(TYPE_FILTERS);
         ascOrDescComboBox.getItems().addAll(ASC_DESC_FILTERS);
@@ -264,6 +301,16 @@ public class AdminMainViewController {
                 }
             }
         });
+
+        // Add listener for branch change
+        locationComboBox.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null && !newVal.equals(oldVal)) {
+                currentBranch = newVal;
+                System.out.println(currentBranch);
+                refreshData();
+            }
+        });
+
     }
 
     @FXML
@@ -730,7 +777,7 @@ public class AdminMainViewController {
     public void setBranch(String branch) {
         this.currentBranch = branch;
         if (branchLabel != null) {
-            branchLabel.setText("Admin");
+            branchLabel.setText("ADMIN");
         }
         if (mainLabel != null) {
             mainLabel.setText("ADMIN - General Log Sheet");
